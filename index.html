@@ -173,9 +173,9 @@
  border:1px solid #d9dee7;border-radius:11px;background:#fff;
 }
 .start-date-display{
- display:flex;align-items:center;justify-content:flex-start;
+ display:flex;align-items:center;justify-content:center;
  width:100%;height:100%;box-sizing:border-box;
- padding:0 12px;text-align:left;white-space:nowrap;color:var(--ink);
+ padding:0 12px;text-align:center;white-space:nowrap;color:var(--ink);
  font-size:15px;pointer-events:none;
 }
 #startMatchDate{
@@ -539,7 +539,7 @@ function renderHistory(){
  document.getElementById('historyList').innerHTML=arr.length?arr.slice().reverse().map(m=>{
  const expanded=expandedHistoryId===m.id;
  const log=expanded?`<div class="edit-history-heading">局ごとの記録</div><div class="edit-hand-list">${m.hands.map((h,i)=>`<div class="edit-hand-row"><div class="edit-hand-row-top"><div><strong>${esc(h.label)}</strong> ・ ${esc(h.result)}</div><button class="btn ghost" onclick="openHandEditor(${m.id},${i})">編集</button></div><div class="edit-inline-sub">${h.riichi?.length?`立直：${orderedHandPlayers(h,h.riichi).map(p=>esc(m.names[p])).join('・')}<br>`:''}${h.delta?h.delta.map((v,p)=>v?`${esc(m.names[p])} ${v>0?'+':''}${v.toLocaleString()}`:'').filter(Boolean).join(' / '):''}</div></div>`).join('')}</div>`:'';
- return `<div class="logitem ${m.status==='無効'?'match-inactive':''}"><div class="final-head"><strong class="logtitle">${esc(m.title||m.names.join(' / '))}</strong><span class="tag">${m.status==='無効'?'無効':'完了'}</span></div><div class="small muted">${statsLocalDay(m.date)} ・ ${m.hands.length}局 ・ ${esc(m.names.join(' / '))}</div><button class="btn ghost" style="margin:6px 0" onclick="toggleMatchMeta(${m.id})">名称・日付を編集</button><div id="matchMeta${m.id}" class="hidden"></div>${m.status==='無効'?'<div class="small muted" style="margin:8px 0">成績集計の対象外です。</div>':finalTable(m)}<div class="match-management"><button class="btn ${m.status==='無効'?'secondary':'ghost'}" onclick="toggleMatchVoid(${m.id})">${m.status==='無効'?'復元して集計に含める':'無効にして集計から除外'}</button></div><button class="btn secondary" style="margin-top:9px;width:100%" onclick="toggleHistoryDetails(${m.id})">${expanded?'局の詳細を閉じる':'局の詳細・編集'}</button>${log}</div>`
+ return `<div class="logitem ${m.status==='無効'?'match-inactive':''}"><div class="final-head"><strong class="logtitle">${esc(m.title||m.names.join(' / '))}</strong><span class="tag">${m.status==='無効'?'無効':'完了'}</span></div><div class="small muted">${statsLocalDay(m.date)} ・ ${m.hands.length}局 ・ ${esc(m.names.join(' / '))}</div><button class="btn ghost" style="margin:6px 0" onclick="toggleMatchMeta(${m.id})">名称・日付を編集</button><div id="matchMeta${m.id}" class="hidden"></div>${finalTable(m)}${m.status==='無効'?'<div class="small muted" style="margin:8px 0">※無効：成績集計の対象外です。</div>':''}<div class="match-management"><button class="btn ${m.status==='無効'?'secondary':'ghost'}" onclick="toggleMatchVoid(${m.id})">${m.status==='無効'?'復元して集計に含める':'無効にして集計から除外'}</button></div><button class="btn secondary" style="margin-top:9px;width:100%" onclick="toggleHistoryDetails(${m.id})">${expanded?'局の詳細を閉じる':'局の詳細・編集'}</button>${log}</div>`
  }).join(''):'<div class="empty">該当する対局がありません。</div>';
 }
 

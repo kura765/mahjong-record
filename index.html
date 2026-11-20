@@ -162,23 +162,32 @@
 #startForm>.actions{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 
-/* v2.6: iOS date input must respect its containing grid cell */
-#startForm .stats-filter-row,#startForm .stats-filter-row>.field{min-width:0;max-width:100%}
-#startMatchDate{
- display:block!important;box-sizing:border-box!important;
- width:100%!important;min-width:0!important;max-width:100%!important;
- margin:0!important;position:relative;
- text-align:left!important;text-align-last:left!important;
- padding-left:12px!important;padding-right:12px!important;
- -webkit-appearance:auto;appearance:auto;
-}
-#startMatchDate::-webkit-date-and-time-value{
- text-align:left!important;min-width:0!important;width:100%!important;
-}
-#startMatchDate::-webkit-datetime-edit{
- text-align:left!important;min-width:0!important;
-}
+/* iOS date picker: native control is the invisible hit target; visual date is a normal span. */
+#startForm .stats-filter-row,
+#startForm .stats-filter-row>.field{min-width:0;max-width:100%}
 #startForm .stats-filter-row>.field input{max-width:100%;box-sizing:border-box}
+.start-date-shell{
+ position:relative!important;display:block!important;
+ width:100%!important;max-width:100%!important;min-width:0!important;
+ height:46px;overflow:hidden;box-sizing:border-box;
+ border:1px solid #d9dee7;border-radius:11px;background:#fff;
+}
+.start-date-display{
+ display:flex;align-items:center;justify-content:flex-start;
+ width:100%;height:100%;box-sizing:border-box;
+ padding:0 12px;text-align:left;white-space:nowrap;color:var(--ink);
+ font-size:15px;pointer-events:none;
+}
+#startMatchDate{
+ display:block!important;position:absolute!important;
+ inset:0!important;top:0!important;left:0!important;
+ width:100%!important;height:100%!important;
+ min-width:0!important;max-width:100%!important;
+ box-sizing:border-box!important;margin:0!important;padding:0!important;
+ opacity:0!important;border:0!important;
+ cursor:pointer;z-index:1;
+}
+.start-date-shell:focus-within{outline:2px solid #c9d9ff;border-color:var(--accent)}
 .match-management{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .match-management .btn{font-size:12px;min-height:40px;padding:9px 12px}
 .match-inactive{opacity:.72}
@@ -189,7 +198,7 @@
 <section class="page active" id="home"><div class="h1">ホーム</div><p class="lead">対局の開始・続きの記録</p><div class="card"><div class="row between"><div><div class="small muted">現在の対局</div><div style="font-size:19px;font-weight:800;margin-top:3px" id="homeCurrent">対局はありません</div></div><span class="tag" id="homeTag">待機中</span></div><div class="divider"></div><div class="actions"><button class="btn full" onclick="showStartForm()">＋ 新しい半荘を始める</button><button class="btn secondary full hidden" id="resumeBtn" onclick="showPage('record')">対局を再開する</button></div>
 <div id="startForm" class="hidden" style="margin-top:14px">
 <div class="divider"></div><h2>対局情報</h2>
-<div class="stats-filter-row"><div class="field"><label for="startMatchTitle">半荘名（任意）</label><div class="auto-title-row"><input id="startMatchTitle" placeholder="例：20261121_01" autocomplete="off" oninput="startTitleWasEdited()"><button type="button" class="btn secondary" onclick="fillAutoTitle()">自動採番</button></div></div><div class="field"><label for="startMatchDate">対局日</label><input id="startMatchDate" type="date" onchange="startDateChanged()"></div></div><h2>参加プレイヤー</h2>
+<div class="stats-filter-row"><div class="field"><label for="startMatchTitle">半荘名（任意）</label><div class="auto-title-row"><input id="startMatchTitle" placeholder="例：20261121_01" autocomplete="off" oninput="startTitleWasEdited()"><button type="button" class="btn secondary" onclick="fillAutoTitle()">自動採番</button></div></div><div class="field"><label for="startMatchDate">対局日</label><div class="start-date-shell"><span id="startMatchDateDisplay" class="start-date-display" aria-hidden="true">日付を選択</span><input id="startMatchDate" type="date" onchange="startDateChanged()" aria-label="対局日"></div></div></div><h2>参加プレイヤー</h2>
 
 <div class="seat-grid">
 <div class="field"><label for="startPlayer0">東家</label><input id="startPlayer0" autocomplete="off" oninput="clearStartError()" placeholder="東家の名前"></div>
@@ -249,8 +258,9 @@ function fillAutoTitle(){
  const input=document.getElementById('startMatchTitle');input.value=automaticMatchTitle(day);startTitleCustomized=false;
 }
 function startTitleWasEdited(){startTitleCustomized=!!document.getElementById('startMatchTitle').value.trim()}
-function startDateChanged(){if(!startTitleCustomized||!document.getElementById('startMatchTitle').value.trim())fillAutoTitle()}
-function showStartForm(){if(db.active){showPage('record');return;}document.getElementById('startForm').classList.remove('hidden');for(let i=0;i<4;i++){let el=document.getElementById('startPlayer'+i);if(!el.value)el.value=db.players[i]||'';}if(!document.getElementById('startMatchDate').value)document.getElementById('startMatchDate').value=statsLocalDay(new Date());if(!startTitleCustomized||!document.getElementById('startMatchTitle').value.trim())fillAutoTitle();document.getElementById('startPlayer0').focus();} 
+function updateStartDateDisplay(){const el=document.getElementById('startMatchDateDisplay');if(!el)return;const v=document.getElementById('startMatchDate').value;el.textContent=/^\d{4}-\d{2}-\d{2}$/.test(v)?v.replace(/-/g,'/'):'日付を選択'}
+function startDateChanged(){updateStartDateDisplay();if(!startTitleCustomized||!document.getElementById('startMatchTitle').value.trim())fillAutoTitle()}
+function showStartForm(){if(db.active){showPage('record');return;}document.getElementById('startForm').classList.remove('hidden');for(let i=0;i<4;i++){let el=document.getElementById('startPlayer'+i);if(!el.value)el.value=db.players[i]||'';}if(!document.getElementById('startMatchDate').value)document.getElementById('startMatchDate').value=statsLocalDay(new Date());updateStartDateDisplay();if(!startTitleCustomized||!document.getElementById('startMatchTitle').value.trim())fillAutoTitle();document.getElementById('startPlayer0').focus();} 
 function cancelStartForm(){clearStartError();document.getElementById('startForm').classList.add('hidden')}
 function clearStartError(){document.getElementById('startError').classList.add('hidden');document.getElementById('startError').textContent='';document.querySelectorAll('#startForm input').forEach(x=>x.classList.remove('start-invalid'))}
 function showStartError(missing){

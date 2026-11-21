@@ -43,6 +43,7 @@ button.ghost{background:#e9efff;color:#2155bb}button:disabled{opacity:.5;cursor:
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 const $=id=>document.getElementById(id);
+const CONFIG_KEY='mahjong-room-lab-public-config'; // Only URL + publishable key, never credentials
 let client=null,user=null,current=null,revision=null;
 function show(id,on){$(id).classList.toggle('hide',!on)}
 function notify(msg){$('message').textContent=msg}
@@ -59,6 +60,7 @@ async function connect(){
  try{
   const {url,key}=validateConfig();
   client=createClient(url,key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'mahjong-room-lab-auth'}});
+  localStorage.setItem(CONFIG_KEY,JSON.stringify({url,key}));
   show('authBox',true);
   const {data,error}=await client.auth.getUser();if(error&&error.name!=='AuthSessionMissingError')throw error;
   user=data?.user||null;await updateAuth();
@@ -136,11 +138,12 @@ async function increment(){
  }catch(e){fail(e)}finally{$('incrementBtn').disabled=false;await refresh()}
 }
 $('connectBtn').onclick=connect;
-$('disconnectBtn').onclick=async()=>{if(client)await client.auth.signOut();client=null;resetAuth();show('authBox',false);$('projectUrl').value='';$('publicKey').value='';notify('接続を解除しました。')};
+$('disconnectBtn').onclick=async()=>{if(client)await client.auth.signOut();client=null;resetAuth();show('authBox',false);localStorage.removeItem(CONFIG_KEY);$('projectUrl').value='';$('publicKey').value='';notify('接続を解除しました。')};
 $('signInBtn').onclick=signIn;
 $('signOutBtn').onclick=async()=>{if(client)await client.auth.signOut();await updateAuth()};
 $('createRoomBtn').onclick=createRoom;
 $('reloadRoomsBtn').onclick=loadRooms;
 $('refreshBtn').onclick=refresh;
 $('incrementBtn').onclick=increment;
+try{const saved=JSON.parse(localStorage.getItem(CONFIG_KEY)||'null');if(saved&&saved.url&&saved.key){$('projectUrl').value=saved.url;$('publicKey').value=saved.key;connect()}}catch(e){/* Invalid saved config: manual connection remains available. */}
 </script></body></html>

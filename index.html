@@ -269,7 +269,26 @@
 <div class="card"><h2>プレイヤー別成績</h2><div id="statsTable" class="empty">対局が完了すると成績が表示されます。</div></div>
 <div id="statsDetails" class="card hidden"><h2><button class="stats-player-button" id="statsDetailsTitle" onclick="selectStatsPlayer(statsApplied?.player||'')" title="タップして全体の成績に戻る">個人成績</button></h2><div id="statsDetailNumbers"></div><details class="stats-chart-details"><summary>累積ポイント・平均順位の推移</summary><div id="statsCharts"></div></details></div>
 </section>
-<section class="page" id="settings"><div class="h1">設定</div><p class="lead">プレイヤーと記録データの管理</p><div class="card"><h2>プレイヤー名</h2><div class="field"><label>新しいプレイヤー名</label><div class="row"><input id="newPlayerName" placeholder="名前を入力" style="height:46px;min-width:0;flex:1;border:1px solid #d9dee7;border-radius:11px;padding:0 12px"><button class="btn" onclick="addPlayer()">追加</button></div></div><div id="playerError" class="start-error hidden" role="alert"></div><div id="playerList"></div></div><div class="card"><h2>画面の拡大操作</h2><label class="row" style="gap:12px;align-items:center"><input type="checkbox" id="preventZoomSetting" style="width:21px;height:21px;flex-shrink:0" onchange="setPreventZoom(this.checked)"><span>ピンチ拡大を抑制する</span></label><p class="small muted">通常はオンです。文字が小さいなど、拡大が必要な場合はオフにしてください。ブラウザやアクセシビリティ機能によっては拡大できることがあります。</p></div><div class="card"><h2>データ管理</h2><p class="small muted">この端末に記録を保存します。</p><div class="actions"><button class="btn secondary" onclick="exportData()">バックアップを書き出す</button><button class="btn ghost" onclick="document.getElementById('importFile').click()">バックアップを読み込む</button><input type="file" id="importFile" accept="application/json" class="hidden" onchange="importData(event)"></div><div class="divider"></div><button class="btn danger full" onclick="clearData()">すべての試作データを削除</button></div><div class="card patch-card"><details><summary><span>更新履歴 <span class="patch-version">v2.9</span></span><span class="patch-expand" aria-hidden="true">＋</span></summary><div class="patch-entries">
+<section class="page" id="settings"><div class="h1">設定</div><p class="lead">プレイヤーと記録データの管理</p><div class="card"><h2>プレイヤー名</h2><div class="field"><label>新しいプレイヤー名</label><div class="row"><input id="newPlayerName" placeholder="名前を入力" style="height:46px;min-width:0;flex:1;border:1px solid #d9dee7;border-radius:11px;padding:0 12px"><button class="btn" onclick="addPlayer()">追加</button></div></div><div id="playerError" class="start-error hidden" role="alert"></div><div id="playerList"></div></div><div class="card"><h2>ルール設定</h2>
+<p class="small muted">次に開始する半荘から適用します。進行中・保存済みの半荘は開始時のルールを保持します。</p>
+<div class="seat-grid">
+<div class="field"><label for="ruleStart">開始点数</label><input id="ruleStart" type="number" min="1000" max="100000" step="1000" value="25000"></div>
+<div class="field"><label for="ruleReturn">返し点</label><input id="ruleReturn" type="number" min="1000" max="100000" step="1000" value="30000"></div>
+<div class="field"><label for="ruleThreshold">終了基準点</label><input id="ruleThreshold" type="number" min="1000" max="100000" step="1000" value="30000"></div>
+<div class="field"><label for="ruleOka">オカ（pt）</label><input id="ruleOka" type="number" min="-100" max="100" step="1" value="20"></div>
+</div>
+<div class="small muted" style="margin-top:8px">ウマ（pt、順位順）</div>
+<div class="seat-grid">
+<div class="field"><label for="ruleUma1">1位</label><input id="ruleUma1" type="number" min="-100" max="100" step="1" value="10"></div>
+<div class="field"><label for="ruleUma2">2位</label><input id="ruleUma2" type="number" min="-100" max="100" step="1" value="5"></div>
+<div class="field"><label for="ruleUma3">3位</label><input id="ruleUma3" type="number" min="-100" max="100" step="1" value="-5"></div>
+<div class="field"><label for="ruleUma4">4位</label><input id="ruleUma4" type="number" min="-100" max="100" step="1" value="-10"></div>
+</div>
+<label class="row" style="margin-top:12px;gap:9px"><input type="checkbox" id="ruleTobi" checked style="width:20px;height:20px"><span>飛びあり（持ち点が0点未満で終了）</span></label>
+<div id="ruleError" class="start-error hidden" role="alert"></div>
+<div class="actions" style="margin-top:10px"><button class="btn secondary" onclick="saveRuleSettings()">ルール設定を保存</button><button class="btn ghost" onclick="resetRuleSettings()">初期設定に戻す</button></div>
+<p class="small muted">開始点数・返し点とオカの整合性、およびウマの合計が0になることを確認します。南4局以降の延長処理は従来どおりです。</p>
+</div><div class="card"><h2>画面の拡大操作</h2><label class="row" style="gap:12px;align-items:center"><input type="checkbox" id="preventZoomSetting" style="width:21px;height:21px;flex-shrink:0" onchange="setPreventZoom(this.checked)"><span>ピンチ拡大を抑制する</span></label><p class="small muted">通常はオンです。文字が小さいなど、拡大が必要な場合はオフにしてください。ブラウザやアクセシビリティ機能によっては拡大できることがあります。</p></div><div class="card"><h2>データ管理</h2><p class="small muted">この端末に記録を保存します。</p><div class="actions"><button class="btn secondary" onclick="exportData()">バックアップを書き出す</button><button class="btn ghost" onclick="document.getElementById('importFile').click()">バックアップを読み込む</button><input type="file" id="importFile" accept="application/json" class="hidden" onchange="importData(event)"></div><div class="divider"></div><button class="btn danger full" onclick="clearData()">すべての試作データを削除</button></div><div class="card patch-card"><details><summary><span>更新履歴 <span class="patch-version">v2.9</span></span><span class="patch-expand" aria-hidden="true">＋</span></summary><div class="patch-entries">
 <section><h3>v2.9</h3><p>画面左上のバージョン番号を更新。登録済みプレイヤーを常に全員表示し、選択済みの人を指定した場合は座席を入れ替える操作に対応。</p></section>
 <section><h3>v2.8</h3><p>半荘開始画面に参加者名の一括クリアを追加。設定画面に更新履歴を追加。</p></section>
 <section><h3>v2.7</h3><p>登録済みプレイヤーからの選択、プレイヤー名の編集・登録解除を追加。過去の対局記録は保持。</p></section>
@@ -301,10 +320,10 @@ document.addEventListener('gesturechange',event=>{
 document.addEventListener('touchmove',event=>{
  if(preventZoom&&event.touches.length>1&&event.cancelable)event.preventDefault();
 },{passive:false});
-function blank(){return {players:[],matches:[],active:null}}
+function blank(){return {players:[],matches:[],active:null,rules:null}}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||blank()}catch(e){return blank()}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(db));document.getElementById('saveStatus').textContent='● 保存済み'}catch(e){document.getElementById('saveStatus').textContent='● 保存エラー'}}
-function showPage(p){document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===p));document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===p));if(p==='home')renderHome();if(p==='record')renderRecord();if(p==='history')renderHistory();if(p==='stats')renderStats();if(p==='settings'){renderPlayers();document.getElementById('preventZoomSetting').checked=preventZoom;}window.scrollTo(0,0)}
+function showPage(p){document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===p));document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===p));if(p==='home')renderHome();if(p==='record')renderRecord();if(p==='history')renderHistory();if(p==='stats')renderStats();if(p==='settings'){renderPlayers();renderRuleSettings();document.getElementById('preventZoomSetting').checked=preventZoom;}window.scrollTo(0,0)}
 // Date-based default titles: YYYYMMDD_01, YYYYMMDD_02, ... .
 // Titles can always be edited, and the next available suffix is determined from saved records.
 let startTitleCustomized=false;
@@ -376,7 +395,7 @@ function showStartError(missing){
  missing.forEach(i=>document.getElementById('startPlayer'+i).classList.add('start-invalid'));
  document.getElementById('startPlayer'+missing[0]).focus();
 }
-function newMatch(){if(db.active){alert('進行中または中断中の対局があります。先にその対局を再開・完了してください。');showPage('record');return;}clearStartError();let names=[0,1,2,3].map(i=>document.getElementById('startPlayer'+i).value.trim());let missing=names.map((n,i)=>n?-1:i).filter(i=>i>=0);if(missing.length){showStartError(missing);return;}if(new Set(names).size!==4){const error=document.getElementById('startError');error.textContent='同じプレイヤーを複数の家に指定できません。';error.classList.remove('hidden');names.forEach((n,i)=>{if(names.indexOf(n)!==i)document.getElementById('startPlayer'+i).classList.add('start-invalid')});return;}names.forEach(n=>{if(!db.players.includes(n))db.players.push(n)});const title=document.getElementById('startMatchTitle').value.trim()||automaticMatchTitle(document.getElementById('startMatchDate').value||statsLocalDay(new Date()));const day=document.getElementById('startMatchDate').value||statsLocalDay(new Date());if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||!Number.isFinite(new Date(day+'T12:00:00').getTime())){alert('正しい対局日を入力してください。');return;}db.active={id:Date.now(),title,date:day+'T12:00:00',names,points:[25000,25000,25000,25000],dealer:0,round:0,honba:0,sticks:0,hands:[],status:'進行中'};undoStack=[];save();document.getElementById('startForm').classList.add('hidden');document.getElementById('startMatchTitle').value='';startTitleCustomized=false;showPage('record')}
+function newMatch(){if(db.active){alert('進行中または中断中の対局があります。先にその対局を再開・完了してください。');showPage('record');return;}clearStartError();let names=[0,1,2,3].map(i=>document.getElementById('startPlayer'+i).value.trim());let missing=names.map((n,i)=>n?-1:i).filter(i=>i>=0);if(missing.length){showStartError(missing);return;}if(new Set(names).size!==4){const error=document.getElementById('startError');error.textContent='同じプレイヤーを複数の家に指定できません。';error.classList.remove('hidden');names.forEach((n,i)=>{if(names.indexOf(n)!==i)document.getElementById('startPlayer'+i).classList.add('start-invalid')});return;}names.forEach(n=>{if(!db.players.includes(n))db.players.push(n)});const title=document.getElementById('startMatchTitle').value.trim()||automaticMatchTitle(document.getElementById('startMatchDate').value||statsLocalDay(new Date()));const day=document.getElementById('startMatchDate').value||statsLocalDay(new Date());if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||!Number.isFinite(new Date(day+'T12:00:00').getTime())){alert('正しい対局日を入力してください。');return;}db.active={id:Date.now(),title,date:day+'T12:00:00',names,rules:JSON.parse(JSON.stringify(db.rules||ruleDefaults())),points:Array(4).fill((db.rules||MATCH_RULES).start),dealer:0,round:0,honba:0,sticks:0,hands:[],status:'進行中'};undoStack=[];save();document.getElementById('startForm').classList.add('hidden');document.getElementById('startMatchTitle').value='';startTitleCustomized=false;showPage('record')}
 function renderHome(){document.getElementById('matchCount').textContent=db.matches.length;document.getElementById('playerCount').textContent=db.players.length;document.getElementById('totalHands').textContent=db.matches.reduce((a,m)=>a+(m.hands?.length||0),0)+(db.active?.hands.length||0);document.getElementById('homeCurrent').textContent=db.active?`${db.active.title?db.active.title+' ・ ':''}${db.active.names.join('・')}`:'対局はありません';document.getElementById('homeTag').textContent=db.active?(db.active.status==='中断'?'中断':'進行中'):'待機中';document.getElementById('resumeBtn').classList.toggle('hidden',!db.active);let r=document.getElementById('recentMatches');if(!db.matches.length)r.className='empty',r.textContent='まだ対局記録がありません。';else r.className='',r.innerHTML=db.matches.slice(-3).reverse().map(m=>`<div class="logitem"><div class="logtitle">${esc(m.title||m.names.join(' / '))}</div><div class="small muted">${new Date(m.date).toLocaleDateString('ja-JP')} ・ ${m.hands.length}局 ・ 完了</div></div>`).join('')}
 function seatIndex(a,i){return (i-a.dealer+4)%4}
 function seatName(a,i){return ['東','南','西','北'][seatIndex(a,i)]}
@@ -595,28 +614,61 @@ function calcHand(a,input){
 
 // v2.1: final rank, settlement and end-of-match rules.
 // Seat 0 is the starting East and wins ties; points are kept in units of 100.
-const MATCH_RULES={start:25000,return:30000,uma:[10,5,-5,-10],oka:20,threshold:30000};
+// Match rules are snapshotted per match. Older matches use their original defaults.
+const MATCH_RULES={start:25000,return:30000,uma:[10,5,-5,-10],oka:20,threshold:30000,tobi:true};
+function rulesFor(m){return m&&m.rules?m.rules:MATCH_RULES}
+function ruleDefaults(){return {...MATCH_RULES,uma:[...MATCH_RULES.uma]}}
+function ruleInput(){
+ const val=id=>Number(document.getElementById(id).value);
+ return {start:val('ruleStart'),return:val('ruleReturn'),threshold:val('ruleThreshold'),oka:val('ruleOka'),
+  uma:[1,2,3,4].map(n=>val('ruleUma'+n)),tobi:document.getElementById('ruleTobi').checked};
+}
+function validateRules(r){
+ const ints=[r.start,r.return,r.threshold,r.oka,...r.uma];
+ if(ints.some(n=>!Number.isSafeInteger(n)))throw Error('すべての数値を整数で入力してください。');
+ if([r.start,r.return,r.threshold].some(n=>n<1000||n>100000||n%1000!==0))throw Error('点数は1,000〜100,000点、1,000点単位で設定してください。');
+ if([r.oka,...r.uma].some(n=>n<-100||n>100))throw Error('ウマとオカは−100〜100ptの範囲で入力してください。');
+ if(r.uma.reduce((a,b)=>a+b,0)!==0)throw Error('ウマの合計は0ptにしてください。');
+ if(r.oka!==(r.return-r.start)*4/1000)throw Error('オカは（返し点−開始点数）×4÷1,000と一致させてください。');
+ return r;
+}
+function renderRuleSettings(){
+ const r=db.rules||ruleDefaults();
+ for(const [key,id] of [['start','ruleStart'],['return','ruleReturn'],['threshold','ruleThreshold'],['oka','ruleOka']])document.getElementById(id).value=r[key];
+ r.uma.forEach((v,i)=>document.getElementById('ruleUma'+(i+1)).value=v);
+ document.getElementById('ruleTobi').checked=r.tobi!==false;
+ document.getElementById('ruleError').classList.add('hidden');
+}
+function saveRuleSettings(){
+ const el=document.getElementById('ruleError');
+ try{db.rules=validateRules(ruleInput());save();el.classList.add('hidden');alert('ルールを保存しました。次に開始する半荘から適用します。')}
+ catch(e){el.textContent=e.message;el.classList.remove('hidden')}
+}
+function resetRuleSettings(){
+ db.rules=ruleDefaults();save();renderRuleSettings();
+}
+
 function rankIndices(points){
  return [0,1,2,3].sort((a,b)=>(points[b]-points[a])||(a-b));
 }
 function settlement(a){
  if(!a||!Array.isArray(a.points)||a.points.length!==4)throw Error('持ち点が正しくありません。');
- const points=a.points.slice(),sticks=Number(a.sticks||0);
+ const rules=rulesFor(a),points=a.points.slice(),sticks=Number(a.sticks||0);
  // Remaining reach deposits go to the highest-ranked player at end of play.
  if(!Number.isInteger(sticks)||sticks<0)throw Error('供託本数が正しくありません。');
  const originalRanks=rankIndices(points),stickRecipient=originalRanks[0];
  points[stickRecipient]+=sticks*1000;
  const ranks=rankIndices(points),byPlayer=Array(4);
  ranks.forEach((player,index)=>{
-  byPlayer[player]={player,rank:index+1,points:points[player],rawPoints:a.points[player],uma:MATCH_RULES.uma[index],oka:index===0?MATCH_RULES.oka:0,
-   score:(points[player]-MATCH_RULES.return)/1000+MATCH_RULES.uma[index]+(index===0?MATCH_RULES.oka:0)};
+  byPlayer[player]={player,rank:index+1,points:points[player],rawPoints:a.points[player],uma:rules.uma[index],oka:index===0?rules.oka:0,
+   score:(points[player]-rules.return)/1000+rules.uma[index]+(index===0?rules.oka:0)};
  });
  return {byPlayer,ranks,stickRecipient,remainingSticks:sticks};
 }
 function leaderOf(points){return rankIndices(points)[0]}
-function endDecision(before,outcome){
- const points=outcome.points,threshold=MATCH_RULES.threshold;
- if(points.some(x=>x<0))return {ended:true,reason:'飛び終了'};
+function endDecision(before,outcome,match){
+ const rules=rulesFor(match),points=outcome.points,threshold=rules.threshold;
+ if(rules.tobi!==false&&points.some(x=>x<0))return {ended:true,reason:'飛び終了'};
  const lastRound=before.round;
  if(lastRound<7)return {ended:false};
  const top=leaderOf(points),qualifies=points[top]>=threshold;
@@ -658,7 +710,7 @@ function matchActivityTable(m){
 function finalTable(m){
  let f;
  try{f=settlement(m)}catch(e){return '<div class="small muted">最終成績を計算できません。</div>'}
- return `<div class="final-details">${f.ranks.map(i=>{let r=f.byPlayer[i];return `<div class="final-rank"><strong>${r.rank}位</strong><span class="final-name">${esc(m.names[i])}</span><span class="final-point">${r.points.toLocaleString()}点</span><strong class="final-point ${r.score>=0?'positive':'negative'}">${r.score>0?'+':''}${r.score.toFixed(1)}pt</strong></div>`}).join('')}</div><div class="final-reason">${esc(m.endReason||'完了')}${f.remainingSticks?` ・ 残り供託${f.remainingSticks}本はトップに加算`:''} ・ ウマ +10/+5/−5/−10 ・ オカ +20</div>`;
+ return `<div class="final-details">${f.ranks.map(i=>{let r=f.byPlayer[i];return `<div class="final-rank"><strong>${r.rank}位</strong><span class="final-name">${esc(m.names[i])}</span><span class="final-point">${r.points.toLocaleString()}点</span><strong class="final-point ${r.score>=0?'positive':'negative'}">${r.score>0?'+':''}${r.score.toFixed(1)}pt</strong></div>`}).join('')}</div><div class="final-reason">${esc(m.endReason||'完了')}${f.remainingSticks?` ・ 残り供託${f.remainingSticks}本はトップに加算`:''} ・ ウマ ${rulesFor(m).uma.map(n=>(n>0?'+':'')+n).join('/')} ・ オカ ${(rulesFor(m).oka>0?'+':'')+rulesFor(m).oka}</div>`;
 }
 
 function commitHand(){
@@ -683,7 +735,7 @@ function commitHand(){
  const previousRound=a.round,previousDealer=a.dealer;
  a.hands.push({roundIndex:previousRound,label,seatOrder:orderedPlayers(a,[0,1,2,3]),honba:a.honba,result:outcome.detail,delta:outcome.delta.slice(),awards:outcome.awards.slice(),type,riichi:outcome.riichi,winners:outcome.winners,loser:outcome.loser,tenpai:outcome.tenpai,hands,input:{type,riichi,winners,tenpai,loser,hands}});
  a.points=outcome.points;a.sticks=outcome.sticks;a.honba=outcome.honba;a.dealer=outcome.dealer;a.round=outcome.round;
- const decision=endDecision({round:previousRound,dealer:previousDealer},outcome);
+ const decision=endDecision({round:previousRound,dealer:previousDealer},outcome,a);
  if(decision.ended){completeMatch(a,decision.reason);showPage('history');return;}
  save();renderRecord();
 }
@@ -787,7 +839,7 @@ function statsMatchData(m,name){
   if((h.riichi||[]).includes(i))riichi++;
   if(new Set([...(h.tenpai||[]),...(h.riichi||[]),...(h.winners||[])]).has(i))tenpai++;
  });
- return {score:entry.score,rank:entry.rank,points:entry.points,raw:Number(m.points[i])-25000,wins,dealin,riichi,tenpai,handsCount,drawCount,drawTenpai,winningPoints,scoredWins};
+ return {score:entry.score,rank:entry.rank,points:entry.points,raw:Number(m.points[i])-rulesFor(m).start,wins,dealin,riichi,tenpai,handsCount,drawCount,drawTenpai,winningPoints,scoredWins};
 }
 function statsAggregate(matches,name){
  const games=matches.map(m=>statsMatchData(m,name));
@@ -867,7 +919,7 @@ function handInput(h){
  return {type:h.type,riichi:[...(h.riichi||[])],winners:[...(h.winners||[])],tenpai:[...(h.tenpai||[])],loser:h.loser??null,hands:JSON.parse(JSON.stringify(h.hands||{}))};
 }
 function initialReplayState(m){
- return {names:m.names.slice(),points:[25000,25000,25000,25000],dealer:0,round:0,honba:0,sticks:0};
+ return {names:m.names.slice(),points:Array(4).fill(rulesFor(m).start),rules:rulesFor(m),dealer:0,round:0,honba:0,sticks:0};
 }
 function replayMatch(m,editedIndex,editedInput){
  const temp=initialReplayState(m),updated=[];
@@ -877,7 +929,7 @@ function replayMatch(m,editedIndex,editedInput){
   const before={round:temp.round,dealer:temp.dealer};
   let result;
   try{result=calcHand(temp,inp)}catch(e){throw Error(`${j+1}局目：${e.message}`)}
-  const decision=endDecision(before,result);
+  const decision=endDecision(before,result,m);
   if(decision.ended&&j<m.hands.length-1)throw Error(`${j+1}局目で半荘が終了するため、それ以降の記録を維持できません。後続の局を確認してから修正してください。`);
   const rebuilt={roundIndex,label,seatOrder,honba:temp.honba,result:result.detail,delta:result.delta.slice(),awards:result.awards.slice(),type:inp.type,riichi:result.riichi,winners:result.winners,loser:result.loser,tenpai:result.tenpai,hands:JSON.parse(JSON.stringify(inp.hands||{})),input:JSON.parse(JSON.stringify(inp))};
   updated.push(rebuilt);
@@ -1010,7 +1062,7 @@ function saveHandEdit(){
    const lastIndex=next.hands.length-1;
    const before=stateBeforeHand(next,lastIndex);
    const finalOutcome=calcHand(before,handInput(next.hands[lastIndex]));
-   const decision=endDecision({round:before.round,dealer:before.dealer},finalOutcome);
+   const decision=endDecision({round:before.round,dealer:before.dealer},finalOutcome,next);
    if(decision.ended){completeMatch(next,decision.reason);editContext=null;showPage('history');return;}
   }
   save();leaveHandEditor();
@@ -1060,7 +1112,7 @@ function importData(e){
   if(!x||typeof x!=='object'||!Array.isArray(x.players)||!Array.isArray(x.matches)||!(x.active===null||x.active===undefined||(x.active&&Array.isArray(x.active.names)&&x.active.names.length===4)))throw Error('バックアップの形式が正しくありません。');
   if(!x.players.every(p=>typeof p==='string')||!x.matches.every(m=>m&&Array.isArray(m.names)&&m.names.length===4&&Array.isArray(m.points)&&m.points.length===4&&Array.isArray(m.hands)))throw Error('バックアップ内の対局データを確認してください。');
   if(!confirm('現在の記録をバックアップの内容で置き換えますか？元の記録は上書きされます。'))return;
-  const backup=db;db={players:x.players,matches:x.matches,active:x.active||null};
+  const backup=db;db={players:x.players,matches:x.matches,active:x.active||null,rules:x.rules?validateRules(x.rules):ruleDefaults()};
   try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){db=backup;throw Error('保存できませんでした。ストレージ容量を確認してください。')}
   statsApplied=null;showPage('home');document.getElementById('saveStatus').textContent='● 保存済み';
  }catch(err){alert(err.message||'読み込めないファイルです。')}finally{e.target.value=''}};

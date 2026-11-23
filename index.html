@@ -304,7 +304,13 @@
 </main></div>
 <nav class="nav"><div class="navin"><button class="active" data-page="home" onclick="showPage('home')"><b>⌂</b>ホーム</button><button data-page="record" onclick="showPage('record')"><b>＋</b>記録</button><button data-page="history" onclick="showPage('history')"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>履歴</button><button data-page="stats" onclick="showPage('stats')"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V12h4v8"/><path d="M10 20V4h4v16"/><path d="M16 20v-9h4v9"/><path d="M3 20h18"/></svg>成績</button><button data-page="settings" onclick="showPage('settings')"><b>⚙</b>設定</button></div></nav>
 <script>
-const KEY='mahjongPrototypeV1';let db=load();let undoStack=[];
+const KEY='mahjongPrototypeV1', RECOVERY_KEY='mahjongPrototypeV1_recovery';
+let storageReadError=null, storageRecoveryUsed=false;
+function validStoredData(x){
+ return x&&typeof x==='object'&&!Array.isArray(x)&&Array.isArray(x.players)&&Array.isArray(x.matches)&&
+ (x.active===null||x.active===undefined||(x.active&&Array.isArray(x.active.names)&&x.active.names.length===4));
+}
+let db=load();let undoStack=[];
 const ZOOM_PREF_KEY='mahjongPreventZoom';
 let preventZoom=localStorage.getItem(ZOOM_PREF_KEY)!=='off';
 function setPreventZoom(enabled){
@@ -322,8 +328,44 @@ document.addEventListener('touchmove',event=>{
  if(preventZoom&&event.touches.length>1&&event.cancelable)event.preventDefault();
 },{passive:false});
 function blank(){return {players:[],matches:[],active:null,rules:null}}
-function load(){try{return JSON.parse(localStorage.getItem(KEY))||blank()}catch(e){return blank()}}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(db));document.getElementById('saveStatus').textContent='● 保存済み'}catch(e){document.getElementById('saveStatus').textContent='● 保存エラー'}}
+function load(){
+ let primary,secondary;
+ try{primary=localStorage.getItem(KEY);secondary=localStorage.getItem(RECOVERY_KEY);}
+ catch(e){storageReadError='ブラウザの保存領域を読み込めません。別のブラウザやプライベートモードを確認してください。';return blank()}
+ if(primary!==null){
+  try{const parsed=JSON.parse(primary);if(validStoredData(parsed))return parsed;}
+  catch(e){}
+ }
+ if(secondary!==null){
+  try{const parsed=JSON.parse(secondary);if(validStoredData(parsed)){storageRecoveryUsed=true;return parsed;}}
+  catch(e){}
+ }
+ if(primary!==null||secondary!==null){
+  storageReadError='保存済みデータを読み込めませんでした。上書きを防ぐため保存を停止しています。バックアップファイルを確認してください。';
+ }
+ return blank();
+}
+function save(){
+ const status=document.getElementById('saveStatus');
+ if(storageReadError){if(status)status.textContent='● 保存停止：読み込みエラー';return false;}
+ try{
+  const next=JSON.stringify(db);
+  localStorage.setItem(KEY,next);
+  if(localStorage.getItem(KEY)!==next)throw Error('保存結果を確認できませんでした');
+  // A secondary copy can recover a corrupted primary entry, but not an origin-wide purge.
+  try{localStorage.setItem(RECOVERY_KEY,next)}catch(e){}
+  if(status)status.textContent='● 保存済み';
+  return true;
+ }catch(e){
+  if(status)status.textContent='● 保存エラー：バックアップを保存してください';
+  alert('記録をブラウザに保存できませんでした。ページを閉じずに、設定からバックアップを保存してください。');
+  return false;
+ }
+}
+function showStorageNotice(){
+ if(storageReadError)alert(storageReadError+' このページで新しい記録を行わず、元のブラウザや保存データを確認してください。');
+ else if(storageRecoveryUsed)alert('保存データの予備コピーから記録を復元して表示しました。念のため「設定」から外部バックアップを保存してください。');
+}
 function showPage(p){document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===p));document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===p));if(p==='home')renderHome();if(p==='record')renderRecord();if(p==='history')renderHistory();if(p==='stats')renderStats();if(p==='settings'){renderPlayers();renderRuleSettings();document.getElementById('preventZoomSetting').checked=preventZoom;}window.scrollTo(0,0)}
 // Date-based default titles: YYYYMMDD_01, YYYYMMDD_02, ... .
 // Titles can always be edited, and the next available suffix is determined from saved records.
@@ -1147,5 +1189,5 @@ function importData(e){
 }
 function clearData(){if(confirm('すべての試作データを削除します。よろしいですか？')&&confirm('この操作は取り消せません。本当に削除しますか？')){db=blank();save();showPage('home')}}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-renderHome();toggleResult();
+renderHome();toggleResult();showStorageNotice();
 </script></body></html>

@@ -236,6 +236,7 @@
 <section class="page active" id="home"><div class="h1">ホーム</div><p class="lead">対局の開始・続きの記録</p><div class="card"><div class="row between"><div><div class="small muted">現在の対局</div><div style="font-size:19px;font-weight:800;margin-top:3px" id="homeCurrent">対局はありません</div></div><span class="tag" id="homeTag">待機中</span></div><div class="divider"></div><div class="actions"><button class="btn full" onclick="showStartForm()">＋ 新しい半荘を始める</button><button class="btn secondary full hidden" id="resumeBtn" onclick="showPage('record')">対局を再開する</button></div>
 <div id="startForm" class="hidden" style="margin-top:14px">
 <div class="divider"></div><h2>対局情報</h2>
+<div class="field"><label for="startRuleFormat">使用するルールフォーマット</label><select id="startRuleFormat" onchange="chooseStartRuleFormat(this.value)"><option value="">現在のルール設定を使用</option></select><div id="startRuleSummary" class="small muted" style="margin-top:6px"></div></div>
 <div class="stats-filter-row"><div class="field"><label for="startMatchTitle">半荘名（任意）</label><div class="auto-title-row"><input id="startMatchTitle" placeholder="例：20261121_01" autocomplete="off" oninput="startTitleWasEdited()"><button type="button" class="btn secondary" onclick="fillAutoTitle()">自動採番</button></div></div><div class="field"><label for="startMatchDate">対局日</label><div class="start-date-shell"><span id="startMatchDateDisplay" class="start-date-display" aria-hidden="true">日付を選択</span><input id="startMatchDate" type="date" onchange="startDateChanged()" aria-label="対局日"></div></div></div><div class="start-players-heading"><h2>参加プレイヤー</h2><button type="button" class="btn ghost clear-start-players" onclick="clearAllStartPlayers()">4人の名前をクリア</button></div>
 
 <div class="seat-grid">
@@ -270,6 +271,10 @@
 <div id="statsDetails" class="card hidden"><h2><button class="stats-player-button" id="statsDetailsTitle" onclick="selectStatsPlayer(statsApplied?.player||'')" title="タップして全体の成績に戻る">個人成績</button></h2><div id="statsDetailNumbers"></div><details class="stats-chart-details"><summary>累積ポイント・平均順位の推移</summary><div id="statsCharts"></div></details></div>
 </section>
 <section class="page" id="settings"><div class="h1">設定</div><p class="lead">プレイヤーと記録データの管理</p><div class="card"><h2>プレイヤー名</h2><div class="field"><label>新しいプレイヤー名</label><div class="row"><input id="newPlayerName" placeholder="名前を入力" style="height:46px;min-width:0;flex:1;border:1px solid #d9dee7;border-radius:11px;padding:0 12px"><button class="btn" onclick="addPlayer()">追加</button></div></div><div id="playerError" class="start-error hidden" role="alert"></div><div id="playerList"></div></div><div class="card"><h2>ルール設定</h2>
+<div class="field"><label for="ruleFormatSelect">保存したルールフォーマット</label><select id="ruleFormatSelect" onchange="selectRuleFormat(this.value)"><option value="">現在のルール（フォーマット未選択）</option></select></div>
+<div class="field" style="margin-top:10px"><label for="ruleFormatName">新しいフォーマット名</label><div class="row"><input id="ruleFormatName" maxlength="40" autocomplete="off" placeholder="例：いつものルール" style="min-width:0;flex:1"><button class="btn secondary" onclick="createRuleFormat()">新規保存</button></div></div>
+<div class="actions" style="margin:10px 0"><button class="btn ghost" onclick="overwriteRuleFormat()">選択中のフォーマットを上書き</button><button class="btn danger" onclick="deleteRuleFormat()">選択中のフォーマットを削除</button></div>
+<p class="small muted">フォーマットを選ぶと設定が自動で適用されます。ルールを編集した場合、登録済みのフォーマットは「上書き」を押すまで変更されません。</p>
 <p class="small muted">次に開始する半荘から適用します。進行中・保存済みの半荘は開始時のルールを保持します。</p>
 <div class="seat-grid">
 <div class="field"><label for="ruleStart">開始点数</label><input id="ruleStart" type="number" min="1000" max="100000" step="1000" value="25000"></div>
@@ -409,7 +414,7 @@ document.addEventListener('gesturechange',event=>{
 document.addEventListener('touchmove',event=>{
  if(preventZoom&&event.touches.length>1&&event.cancelable)event.preventDefault();
 },{passive:false});
-function blank(){return {players:[],matches:[],active:null,rules:null}}
+function blank(){return {players:[],matches:[],active:null,rules:null,ruleFormats:[],selectedRuleFormat:null}}
 function load(){
  let primary,secondary;
  try{primary=localStorage.getItem(KEY);secondary=localStorage.getItem(RECOVERY_KEY);}
@@ -471,7 +476,7 @@ function fillAutoTitle(){
 function startTitleWasEdited(){startTitleCustomized=!!document.getElementById('startMatchTitle').value.trim()}
 function updateStartDateDisplay(){const el=document.getElementById('startMatchDateDisplay');if(!el)return;const v=document.getElementById('startMatchDate').value;el.textContent=/^\d{4}-\d{2}-\d{2}$/.test(v)?v.replace(/-/g,'/'):'日付を選択'}
 function startDateChanged(){updateStartDateDisplay();if(!startTitleCustomized||!document.getElementById('startMatchTitle').value.trim())fillAutoTitle()}
-function showStartForm(){if(db.active){showPage('record');return;}document.getElementById('startForm').classList.remove('hidden');for(let i=0;i<4;i++){let el=document.getElementById('startPlayer'+i);if(!el.value)el.value='';}document.getElementById('startMatchDate').value=statsLocalDay(new Date());updateStartDateDisplay();if(!startTitleCustomized||!document.getElementById('startMatchTitle').value.trim())fillAutoTitle();syncStartPlayerChoices();closeStartPlayerChoices();} 
+function showStartForm(){if(db.active){showPage('record');return;}document.getElementById('startForm').classList.remove('hidden');for(let i=0;i<4;i++){let el=document.getElementById('startPlayer'+i);if(!el.value)el.value='';}document.getElementById('startMatchDate').value=statsLocalDay(new Date());updateStartDateDisplay();if(!startTitleCustomized||!document.getElementById('startMatchTitle').value.trim())fillAutoTitle();syncStartPlayerChoices();closeStartPlayerChoices();updateRuleFormatSelects();} 
 function cancelStartForm(){clearStartError();closeStartPlayerChoices();document.getElementById('startForm').classList.add('hidden')}
 function closeStartPlayerChoices(){
  for(let i=0;i<4;i++){
@@ -759,20 +764,102 @@ function validateRules(r){
  if(r.oka!==(r.return-r.start)*4/1000)throw Error('オカは（返し点−開始点数）×4÷1,000と一致させてください。');
  return r;
 }
-function renderRuleSettings(){
- const r=db.rules||ruleDefaults();
+function availableRuleFormats(){return Array.isArray(db.ruleFormats)?db.ruleFormats:[]}
+function ruleFormatById(id){return availableRuleFormats().find(f=>f.id===id)}
+function ruleFormatOptions(includeCurrent=true){
+ return (includeCurrent?'<option value="">現在のルール設定を使用</option>':'')+availableRuleFormats().map(f=>'<option value="'+esc(f.id)+'">'+esc(f.name)+'</option>').join('');
+}
+function updateRuleFormatSelects(){
+ const current=ruleFormatById(db.selectedRuleFormat)?.id||'';
+ const select=document.getElementById('ruleFormatSelect');
+ if(select){select.innerHTML='<option value="">現在のルール（フォーマット未選択）</option>'+ruleFormatOptions(false);select.value=current;}
+ const start=document.getElementById('startRuleFormat');
+ if(start){start.innerHTML=ruleFormatOptions();start.value=current;}
+ refreshStartRuleSummary();
+}
+function applyRuleFields(r){
  for(const [key,id] of [['start','ruleStart'],['return','ruleReturn'],['threshold','ruleThreshold'],['oka','ruleOka']])document.getElementById(id).value=r[key];
  r.uma.forEach((v,i)=>document.getElementById('ruleUma'+(i+1)).value=v);
  document.getElementById('ruleTobi').checked=r.tobi!==false;
+}
+function ruleErrorMessage(message){
+ const el=document.getElementById('ruleError');el.textContent=message;el.classList.remove('hidden');
+}
+function storeSelectedRules(r,id){
+ const previous=db.rules,prevId=db.selectedRuleFormat;
+ db.rules=JSON.parse(JSON.stringify(r));db.selectedRuleFormat=id||null;
+ if(!save()){db.rules=previous;db.selectedRuleFormat=prevId;return false}
+ return true;
+}
+function selectRuleFormat(id){
+ const format=ruleFormatById(id);
+ if(id&&!format){ruleErrorMessage('選択したフォーマットが見つかりません。');return}
+ if(id){
+  if(!storeSelectedRules(format.rules,id))return;
+  applyRuleFields(format.rules);
+ }else if(!storeSelectedRules(db.rules||ruleDefaults(),null))return;
+ updateRuleFormatSelects();
+ document.getElementById('ruleError').classList.add('hidden');
+}
+function createRuleFormat(){
+ const name=document.getElementById('ruleFormatName').value.trim();
+ if(!name){ruleErrorMessage('フォーマット名を入力してください。');return}
+ if(availableRuleFormats().some(f=>f.name===name)){ruleErrorMessage('同じ名前のフォーマットが存在します。');return}
+ try{
+  const rules=JSON.parse(JSON.stringify(validateRules(ruleInput())));
+  const id='format_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+  const previous=availableRuleFormats().slice(),oldRules=db.rules,oldSelected=db.selectedRuleFormat;
+  db.ruleFormats=[...previous,{id,name,rules}];db.rules=rules;db.selectedRuleFormat=id;
+  if(!save()){db.ruleFormats=previous;db.rules=oldRules;db.selectedRuleFormat=oldSelected;return}
+  document.getElementById('ruleFormatName').value='';
+  document.getElementById('ruleError').classList.add('hidden');
+  updateRuleFormatSelects();
+ }catch(e){ruleErrorMessage(e.message)}
+}
+function overwriteRuleFormat(){
+ const format=ruleFormatById(db.selectedRuleFormat);
+ if(!format){ruleErrorMessage('上書きするフォーマットを選択してください。');return}
+ try{
+  const rules=JSON.parse(JSON.stringify(validateRules(ruleInput())));
+  if(!confirm('「'+format.name+'」の保存済みルールを上書きしますか？'))return;
+  const oldRules=format.rules,oldCurrent=db.rules;
+  format.rules=rules;db.rules=rules;
+  if(!save()){format.rules=oldRules;db.rules=oldCurrent;return}
+  document.getElementById('ruleError').classList.add('hidden');refreshStartRuleSummary();
+ }catch(e){ruleErrorMessage(e.message)}
+}
+function deleteRuleFormat(){
+ const format=ruleFormatById(db.selectedRuleFormat);
+ if(!format){ruleErrorMessage('削除するフォーマットを選択してください。');return}
+ if(!confirm('「'+format.name+'」を削除しますか？過去の半荘ルールは変更されません。'))return;
+ const oldFormats=availableRuleFormats(),oldSelected=db.selectedRuleFormat;
+ db.ruleFormats=oldFormats.filter(f=>f.id!==format.id);db.selectedRuleFormat=null;
+ if(!save()){db.ruleFormats=oldFormats;db.selectedRuleFormat=oldSelected;return}
+ updateRuleFormatSelects();document.getElementById('ruleError').classList.add('hidden');
+}
+function refreshStartRuleSummary(){
+ const box=document.getElementById('startRuleSummary');if(!box)return;
+ const r=ruleFormatById(db.selectedRuleFormat)?.rules||db.rules||ruleDefaults();
+ box.textContent='開始'+r.start.toLocaleString()+'点 / 返し'+r.return.toLocaleString()+'点 / ウマ '+r.uma.map(n=>(n>0?'+':'')+n).join('/')+' / オカ '+r.oka+'pt / 飛び'+(r.tobi===false?'なし':'あり');
+}
+function chooseStartRuleFormat(id){
+ const format=ruleFormatById(id);
+ if(id&&!format){alert('フォーマットが見つかりません。');updateRuleFormatSelects();return}
+ if(!storeSelectedRules(format?format.rules:(db.rules||ruleDefaults()),format?id:null)){updateRuleFormatSelects();return}
+ updateRuleFormatSelects();
+}
+function renderRuleSettings(){
+ const r=db.rules||ruleDefaults();
+ applyRuleFields(r);updateRuleFormatSelects();
  document.getElementById('ruleError').classList.add('hidden');
 }
 function saveRuleSettings(){
  const el=document.getElementById('ruleError');
- try{db.rules=validateRules(ruleInput());save();el.classList.add('hidden');alert('ルールを保存しました。次に開始する半荘から適用します。')}
+ try{const rules=validateRules(ruleInput());if(!storeSelectedRules(rules,null))return;updateRuleFormatSelects();el.classList.add('hidden');alert('現在のルールを保存しました。登録済みフォーマットは変更されません。')}
  catch(e){el.textContent=e.message;el.classList.remove('hidden')}
 }
 function resetRuleSettings(){
- db.rules=ruleDefaults();save();renderRuleSettings();
+ if(storeSelectedRules(ruleDefaults(),null))renderRuleSettings();
 }
 
 function rankIndices(points){
@@ -1264,7 +1351,12 @@ function importData(e){
   if(!x||typeof x!=='object'||!Array.isArray(x.players)||!Array.isArray(x.matches)||!(x.active===null||x.active===undefined||(x.active&&Array.isArray(x.active.names)&&x.active.names.length===4)))throw Error('バックアップの形式が正しくありません。');
   if(!x.players.every(p=>typeof p==='string')||!x.matches.every(m=>m&&Array.isArray(m.names)&&m.names.length===4&&Array.isArray(m.points)&&m.points.length===4&&Array.isArray(m.hands)))throw Error('バックアップ内の対局データを確認してください。');
   if(!confirm('現在の記録をバックアップの内容で置き換えますか？元の記録は上書きされます。'))return;
-  const backup=db;db={players:x.players,matches:x.matches,active:x.active||null,rules:x.rules?validateRules(x.rules):ruleDefaults()};
+  const backup=db;const incomingFormats=Array.isArray(x.ruleFormats)?x.ruleFormats.map(v=>{
+   if(!v||typeof v.id!=='string'||typeof v.name!=='string'||!v.name.trim()||v.name.length>40)throw Error('フォーマットの名称が正しくありません。');
+   return {id:v.id,name:v.name,rules:validateRules(v.rules)};
+  }):[];
+  if(new Set(incomingFormats.map(f=>f.id)).size!==incomingFormats.length||new Set(incomingFormats.map(f=>f.name)).size!==incomingFormats.length)throw Error('フォーマット名またはIDが重複しています。');
+  db={players:x.players,matches:x.matches,active:x.active||null,rules:x.rules?validateRules(x.rules):ruleDefaults(),ruleFormats:incomingFormats,selectedRuleFormat:incomingFormats.some(v=>v.id===x.selectedRuleFormat)?x.selectedRuleFormat:null};
   try{localStorage.setItem(KEY,JSON.stringify(db));localStorage.setItem(RECOVERY_KEY,JSON.stringify(db));storageReadError=null;diagLastSave=new Date().toISOString();diagRecord('バックアップ読込成功',{matches:db.matches.length});}catch(e){db=backup;diagRecord('バックアップ読込失敗',{type:String(e.name||'error')});throw Error('保存できませんでした。ストレージ容量を確認してください。')}
   statsApplied=null;showPage('home');document.getElementById('saveStatus').textContent='● 保存済み';
  }catch(err){alert(err.message||'読み込めないファイルです。')}finally{e.target.value=''}};

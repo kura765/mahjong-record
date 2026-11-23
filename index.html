@@ -236,7 +236,28 @@
 <section class="page active" id="home"><div class="h1">ホーム</div><p class="lead">対局の開始・続きの記録</p><div class="card"><div class="row between"><div><div class="small muted">現在の対局</div><div style="font-size:19px;font-weight:800;margin-top:3px" id="homeCurrent">対局はありません</div></div><span class="tag" id="homeTag">待機中</span></div><div class="divider"></div><div class="actions"><button class="btn full" onclick="showStartForm()">＋ 新しい半荘を始める</button><button class="btn secondary full hidden" id="resumeBtn" onclick="showPage('record')">対局を再開する</button></div>
 <div id="startForm" class="hidden" style="margin-top:14px">
 <div class="divider"></div><h2>対局情報</h2>
-<div class="field"><label for="startRuleFormat">使用するルールフォーマット</label><select id="startRuleFormat" onchange="chooseStartRuleFormat(this.value)"><option value="">現在のルール設定を使用</option></select><div id="startRuleSummary" class="small muted" style="margin-top:6px"></div></div>
+<div class="field"><label for="startRuleFormat">使用するルールフォーマット</label><select id="startRuleFormat" onchange="chooseStartRuleFormat(this.value)"><option value="">現在のルール設定を使用</option></select><div id="startRuleSummary" class="small muted" style="margin-top:6px"></div></div><details class="card" id="startRulesDetails" open style="margin:10px 0;padding:12px">
+<summary style="font-weight:700;cursor:pointer">対局ルールの確認・編集</summary>
+<p class="small muted" style="margin:8px 0">ここで変更した値はこの半荘に適用されます。フォーマットを変更するには「上書き保存」を押してください。</p>
+<div class="seat-grid">
+<div class="field"><label for="startRuleStart">開始点数</label><input id="startRuleStart" type="number" min="1000" max="100000" step="1000" oninput="refreshStartRuleSummary()"></div>
+<div class="field"><label for="startRuleReturn">返し点</label><input id="startRuleReturn" type="number" min="1000" max="100000" step="1000" oninput="refreshStartRuleSummary()"></div>
+<div class="field"><label for="startRuleThreshold">終了基準点</label><input id="startRuleThreshold" type="number" min="1000" max="100000" step="1000" oninput="refreshStartRuleSummary()"></div>
+<div class="field"><label for="startRuleOka">オカ（pt）</label><input id="startRuleOka" type="number" min="-100" max="100" step="1" oninput="refreshStartRuleSummary()"></div>
+</div>
+<div class="small muted" style="margin-top:8px">ウマ（pt、順位順）</div>
+<div class="seat-grid">
+<div class="field"><label for="startRuleUma1">1位</label><input id="startRuleUma1" type="number" min="-100" max="100" step="1" oninput="refreshStartRuleSummary()"></div>
+<div class="field"><label for="startRuleUma2">2位</label><input id="startRuleUma2" type="number" min="-100" max="100" step="1" oninput="refreshStartRuleSummary()"></div>
+<div class="field"><label for="startRuleUma3">3位</label><input id="startRuleUma3" type="number" min="-100" max="100" step="1" oninput="refreshStartRuleSummary()"></div>
+<div class="field"><label for="startRuleUma4">4位</label><input id="startRuleUma4" type="number" min="-100" max="100" step="1" oninput="refreshStartRuleSummary()"></div>
+</div>
+<label class="row" style="margin:10px 0;gap:8px"><input id="startRuleTobi" type="checkbox" style="width:20px;height:20px" onchange="refreshStartRuleSummary()"><span>飛びあり</span></label>
+<div class="field"><label for="startRuleFormatName">新しいフォーマット名</label><div class="row"><input id="startRuleFormatName" maxlength="40" autocomplete="off" placeholder="名前を入力" style="min-width:0;flex:1"><button type="button" class="btn secondary" onclick="createRuleFormat('start')">新規保存</button></div></div>
+<div class="actions" style="margin-top:10px"><button type="button" class="btn ghost" onclick="overwriteRuleFormat('start')">選択中のフォーマットを上書き</button><button type="button" class="btn danger" onclick="deleteRuleFormat('start')">選択中のフォーマットを削除</button></div>
+<div id="startRuleError" class="start-error hidden" role="alert"></div>
+</details>
+
 <div class="stats-filter-row"><div class="field"><label for="startMatchTitle">半荘名（任意）</label><div class="auto-title-row"><input id="startMatchTitle" placeholder="例：20261121_01" autocomplete="off" oninput="startTitleWasEdited()"><button type="button" class="btn secondary" onclick="fillAutoTitle()">自動採番</button></div></div><div class="field"><label for="startMatchDate">対局日</label><div class="start-date-shell"><span id="startMatchDateDisplay" class="start-date-display" aria-hidden="true">日付を選択</span><input id="startMatchDate" type="date" onchange="startDateChanged()" aria-label="対局日"></div></div></div><div class="start-players-heading"><h2>参加プレイヤー</h2><button type="button" class="btn ghost clear-start-players" onclick="clearAllStartPlayers()">4人の名前をクリア</button></div>
 
 <div class="seat-grid">
@@ -477,7 +498,7 @@ function fillAutoTitle(){
 function startTitleWasEdited(){startTitleCustomized=!!document.getElementById('startMatchTitle').value.trim()}
 function updateStartDateDisplay(){const el=document.getElementById('startMatchDateDisplay');if(!el)return;const v=document.getElementById('startMatchDate').value;el.textContent=/^\d{4}-\d{2}-\d{2}$/.test(v)?v.replace(/-/g,'/'):'日付を選択'}
 function startDateChanged(){updateStartDateDisplay();if(!startTitleCustomized||!document.getElementById('startMatchTitle').value.trim())fillAutoTitle()}
-function showStartForm(){if(db.active){showPage('record');return;}document.getElementById('startForm').classList.remove('hidden');for(let i=0;i<4;i++){let el=document.getElementById('startPlayer'+i);if(!el.value)el.value='';}document.getElementById('startMatchDate').value=statsLocalDay(new Date());updateStartDateDisplay();if(!startTitleCustomized||!document.getElementById('startMatchTitle').value.trim())fillAutoTitle();syncStartPlayerChoices();closeStartPlayerChoices();updateRuleFormatSelects();} 
+function showStartForm(){if(db.active){showPage('record');return;}document.getElementById('startForm').classList.remove('hidden');for(let i=0;i<4;i++){let el=document.getElementById('startPlayer'+i);if(!el.value)el.value='';}document.getElementById('startMatchDate').value=statsLocalDay(new Date());updateStartDateDisplay();if(!startTitleCustomized||!document.getElementById('startMatchTitle').value.trim())fillAutoTitle();syncStartPlayerChoices();closeStartPlayerChoices();applyRuleFields(db.rules||ruleDefaults(),'start');updateRuleFormatSelects();} 
 function cancelStartForm(){clearStartError();closeStartPlayerChoices();document.getElementById('startForm').classList.add('hidden')}
 function closeStartPlayerChoices(){
  for(let i=0;i<4;i++){
@@ -528,7 +549,7 @@ function showStartError(missing){
  missing.forEach(i=>document.getElementById('startPlayer'+i).classList.add('start-invalid'));
  document.getElementById('startPlayer'+missing[0]).focus();
 }
-function newMatch(){if(db.active){alert('進行中または中断中の対局があります。先にその対局を再開・完了してください。');showPage('record');return;}clearStartError();let names=[0,1,2,3].map(i=>document.getElementById('startPlayer'+i).value.trim());let missing=names.map((n,i)=>n?-1:i).filter(i=>i>=0);if(missing.length){showStartError(missing);return;}if(new Set(names).size!==4){const error=document.getElementById('startError');error.textContent='同じプレイヤーを複数の家に指定できません。';error.classList.remove('hidden');names.forEach((n,i)=>{if(names.indexOf(n)!==i)document.getElementById('startPlayer'+i).classList.add('start-invalid')});return;}names.forEach(n=>{if(!db.players.includes(n))db.players.push(n)});const title=document.getElementById('startMatchTitle').value.trim()||automaticMatchTitle(document.getElementById('startMatchDate').value||statsLocalDay(new Date()));const day=document.getElementById('startMatchDate').value||statsLocalDay(new Date());if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||!Number.isFinite(new Date(day+'T12:00:00').getTime())){alert('正しい対局日を入力してください。');return;}db.active={id:Date.now(),title,date:day+'T12:00:00',names,rules:JSON.parse(JSON.stringify(db.rules||ruleDefaults())),points:Array(4).fill((db.rules||MATCH_RULES).start),dealer:0,round:0,honba:0,sticks:0,hands:[],status:'進行中'};undoStack=[];save();document.getElementById('startForm').classList.add('hidden');document.getElementById('startMatchTitle').value='';startTitleCustomized=false;showPage('record')}
+function newMatch(){if(db.active){alert('進行中または中断中の対局があります。先にその対局を再開・完了してください。');showPage('record');return;}clearStartError();let names=[0,1,2,3].map(i=>document.getElementById('startPlayer'+i).value.trim());let missing=names.map((n,i)=>n?-1:i).filter(i=>i>=0);if(missing.length){showStartError(missing);return;}if(new Set(names).size!==4){const error=document.getElementById('startError');error.textContent='同じプレイヤーを複数の家に指定できません。';error.classList.remove('hidden');names.forEach((n,i)=>{if(names.indexOf(n)!==i)document.getElementById('startPlayer'+i).classList.add('start-invalid')});return;}let chosenRules;try{chosenRules=JSON.parse(JSON.stringify(validateRules(ruleInput('start'))))}catch(e){ruleErrorMessage(e.message,'start');document.getElementById('startRulesDetails').open=true;return;}names.forEach(n=>{if(!db.players.includes(n))db.players.push(n)});const title=document.getElementById('startMatchTitle').value.trim()||automaticMatchTitle(document.getElementById('startMatchDate').value||statsLocalDay(new Date()));const day=document.getElementById('startMatchDate').value||statsLocalDay(new Date());if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||!Number.isFinite(new Date(day+'T12:00:00').getTime())){alert('正しい対局日を入力してください。');return;}db.active={id:Date.now(),title,date:day+'T12:00:00',names,rules:chosenRules,points:Array(4).fill(chosenRules.start),dealer:0,round:0,honba:0,sticks:0,hands:[],status:'進行中'};undoStack=[];save();document.getElementById('startForm').classList.add('hidden');document.getElementById('startMatchTitle').value='';startTitleCustomized=false;showPage('record')}
 function renderHome(){updateBackupReminder();document.getElementById('matchCount').textContent=db.matches.length;document.getElementById('playerCount').textContent=db.players.length;document.getElementById('totalHands').textContent=db.matches.reduce((a,m)=>a+(m.hands?.length||0),0)+(db.active?.hands.length||0);document.getElementById('homeCurrent').textContent=db.active?`${db.active.title?db.active.title+' ・ ':''}${db.active.names.join('・')}`:'対局はありません';document.getElementById('homeTag').textContent=db.active?(db.active.status==='中断'?'中断':'進行中'):'待機中';document.getElementById('resumeBtn').classList.toggle('hidden',!db.active);let r=document.getElementById('recentMatches');if(!db.matches.length)r.className='empty',r.textContent='まだ対局記録がありません。';else r.className='',r.innerHTML=db.matches.slice(-3).reverse().map(m=>`<div class="logitem"><div class="logtitle">${esc(m.title||m.names.join(' / '))}</div><div class="small muted">${new Date(m.date).toLocaleDateString('ja-JP')} ・ ${m.hands.length}局 ・ 完了</div></div>`).join('')}
 function seatIndex(a,i){return (i-a.dealer+4)%4}
 function seatName(a,i){return ['東','南','西','北'][seatIndex(a,i)]}
@@ -751,10 +772,11 @@ function calcHand(a,input){
 const MATCH_RULES={start:25000,return:30000,uma:[10,5,-5,-10],oka:20,threshold:30000,tobi:true};
 function rulesFor(m){return m&&m.rules?m.rules:MATCH_RULES}
 function ruleDefaults(){return {...MATCH_RULES,uma:[...MATCH_RULES.uma]}}
-function ruleInput(){
- const val=id=>Number(document.getElementById(id).value);
- return {start:val('ruleStart'),return:val('ruleReturn'),threshold:val('ruleThreshold'),oka:val('ruleOka'),
-  uma:[1,2,3,4].map(n=>val('ruleUma'+n)),tobi:document.getElementById('ruleTobi').checked};
+function ruleInput(context='settings'){
+ const prefix=context==='start'?'startRule':'rule';
+ const val=key=>{const raw=document.getElementById(prefix+key).value;return raw.trim()===''?NaN:Number(raw)};
+ return {start:val('Start'),return:val('Return'),threshold:val('Threshold'),oka:val('Oka'),
+  uma:[1,2,3,4].map(n=>val('Uma'+n)),tobi:document.getElementById(prefix+'Tobi').checked};
 }
 function validateRules(r){
  const ints=[r.start,r.return,r.threshold,r.oka,...r.uma];
@@ -778,13 +800,17 @@ function updateRuleFormatSelects(){
  if(start){start.innerHTML=ruleFormatOptions();start.value=current;}
  refreshStartRuleSummary();
 }
-function applyRuleFields(r){
- for(const [key,id] of [['start','ruleStart'],['return','ruleReturn'],['threshold','ruleThreshold'],['oka','ruleOka']])document.getElementById(id).value=r[key];
- r.uma.forEach((v,i)=>document.getElementById('ruleUma'+(i+1)).value=v);
- document.getElementById('ruleTobi').checked=r.tobi!==false;
+function applyRuleFields(r,context='settings'){
+ const prefix=context==='start'?'startRule':'rule';
+ for(const [key,name] of [['start','Start'],['return','Return'],['threshold','Threshold'],['oka','Oka']]){
+  const el=document.getElementById(prefix+name);if(el)el.value=r[key];
+ }
+ r.uma.forEach((v,i)=>{const el=document.getElementById(prefix+'Uma'+(i+1));if(el)el.value=v});
+ const cb=document.getElementById(prefix+'Tobi');if(cb)cb.checked=r.tobi!==false;
 }
-function ruleErrorMessage(message){
- const el=document.getElementById('ruleError');el.textContent=message;el.classList.remove('hidden');
+function ruleErrorMessage(message,context='settings'){
+ const el=document.getElementById(context==='start'?'startRuleError':'ruleError');
+ if(el){el.textContent=message;el.classList.remove('hidden');}
 }
 function storeSelectedRules(r,id){
  const previous=db.rules,prevId=db.selectedRuleFormat;
@@ -802,52 +828,55 @@ function selectRuleFormat(id){
  updateRuleFormatSelects();
  document.getElementById('ruleError').classList.add('hidden');
 }
-function createRuleFormat(){
- const name=document.getElementById('ruleFormatName').value.trim();
- if(!name){ruleErrorMessage('フォーマット名を入力してください。');return}
- if(availableRuleFormats().some(f=>f.name===name)){ruleErrorMessage('同じ名前のフォーマットが存在します。');return}
+function createRuleFormat(context='settings'){
+ const name=document.getElementById(context==='start'?'startRuleFormatName':'ruleFormatName').value.trim();
+ if(!name){ruleErrorMessage('フォーマット名を入力してください。',context);return}
+ if(availableRuleFormats().some(f=>f.name===name)){ruleErrorMessage('同じ名前のフォーマットが存在します。',context);return}
  try{
-  const rules=JSON.parse(JSON.stringify(validateRules(ruleInput())));
+  const rules=JSON.parse(JSON.stringify(validateRules(ruleInput(context))));
   const id='format_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
   const previous=availableRuleFormats().slice(),oldRules=db.rules,oldSelected=db.selectedRuleFormat;
   db.ruleFormats=[...previous,{id,name,rules}];db.rules=rules;db.selectedRuleFormat=id;
   if(!save()){db.ruleFormats=previous;db.rules=oldRules;db.selectedRuleFormat=oldSelected;return}
-  document.getElementById('ruleFormatName').value='';
-  document.getElementById('ruleError').classList.add('hidden');
+  document.getElementById(context==='start'?'startRuleFormatName':'ruleFormatName').value='';
+  document.getElementById(context==='start'?'startRuleError':'ruleError').classList.add('hidden');
   updateRuleFormatSelects();
- }catch(e){ruleErrorMessage(e.message)}
+  applyRuleFields(rules,'start');
+ }catch(e){ruleErrorMessage(e.message,context)}
 }
-function overwriteRuleFormat(){
+function overwriteRuleFormat(context='settings'){
  const format=ruleFormatById(db.selectedRuleFormat);
- if(!format){ruleErrorMessage('上書きするフォーマットを選択してください。');return}
+ if(!format){ruleErrorMessage('上書きするフォーマットを選択してください。',context);return}
  try{
-  const rules=JSON.parse(JSON.stringify(validateRules(ruleInput())));
+  const rules=JSON.parse(JSON.stringify(validateRules(ruleInput(context))));
   if(!confirm('「'+format.name+'」の保存済みルールを上書きしますか？'))return;
   const oldRules=format.rules,oldCurrent=db.rules;
   format.rules=rules;db.rules=rules;
   if(!save()){format.rules=oldRules;db.rules=oldCurrent;return}
-  document.getElementById('ruleError').classList.add('hidden');refreshStartRuleSummary();
- }catch(e){ruleErrorMessage(e.message)}
+  document.getElementById(context==='start'?'startRuleError':'ruleError').classList.add('hidden');refreshStartRuleSummary();
+ }catch(e){ruleErrorMessage(e.message,context)}
 }
-function deleteRuleFormat(){
+function deleteRuleFormat(context='settings'){
  const format=ruleFormatById(db.selectedRuleFormat);
- if(!format){ruleErrorMessage('削除するフォーマットを選択してください。');return}
+ if(!format){ruleErrorMessage('削除するフォーマットを選択してください。',context);return}
  if(!confirm('「'+format.name+'」を削除しますか？過去の半荘ルールは変更されません。'))return;
  const oldFormats=availableRuleFormats(),oldSelected=db.selectedRuleFormat;
  db.ruleFormats=oldFormats.filter(f=>f.id!==format.id);db.selectedRuleFormat=null;
  if(!save()){db.ruleFormats=oldFormats;db.selectedRuleFormat=oldSelected;return}
- updateRuleFormatSelects();document.getElementById('ruleError').classList.add('hidden');
+ updateRuleFormatSelects();document.getElementById(context==='start'?'startRuleError':'ruleError').classList.add('hidden');
 }
 function refreshStartRuleSummary(){
  const box=document.getElementById('startRuleSummary');if(!box)return;
- const r=ruleFormatById(db.selectedRuleFormat)?.rules||db.rules||ruleDefaults();
+ let r;try{r=validateRules(ruleInput('start'))}catch(e){box.textContent='変更中のルール：'+e.message;return}
  box.textContent='開始'+r.start.toLocaleString()+'点 / 返し'+r.return.toLocaleString()+'点 / ウマ '+r.uma.map(n=>(n>0?'+':'')+n).join('/')+' / オカ '+r.oka+'pt / 飛び'+(r.tobi===false?'なし':'あり');
 }
 function chooseStartRuleFormat(id){
  const format=ruleFormatById(id);
  if(id&&!format){alert('フォーマットが見つかりません。');updateRuleFormatSelects();return}
  if(!storeSelectedRules(format?format.rules:(db.rules||ruleDefaults()),format?id:null)){updateRuleFormatSelects();return}
+ applyRuleFields(db.rules,'start');
  updateRuleFormatSelects();
+ document.getElementById('startRuleError').classList.add('hidden');
 }
 function renderRuleSettings(){
  const r=db.rules||ruleDefaults();

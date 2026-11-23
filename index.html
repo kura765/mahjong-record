@@ -746,25 +746,39 @@ function statsFilterForPlayer(matches,name,mode,n){
  if(mode==='individual')arr=arr.slice(-n);
  return arr;
 }
+// Base winning points per win, excluding honba and reach deposits.
+function statsBaseWinningPoints(hand,seat){
+ if(hand.type!=='ron'&&hand.type!=='tsumo')return null;
+ const info=hand.hands?.[seat]??hand.input?.hands?.[seat];
+ const dealer=Array.isArray(hand.seatOrder)&&hand.seatOrder.length===4?Number(hand.seatOrder[0]):null;
+ if(!info||!Number.isInteger(dealer)||dealer<0||dealer>3)return null;
+ const han=Number(info.han),fu=Number(info.fu),yakuman=Number(info.yakuman||0);
+ if(!Number.isInteger(han)||han<1||!Number.isInteger(fu)||fu<20||!Number.isInteger(yakuman)||yakuman<0||yakuman>6)return null;
+ const base=calcBase(han,fu,yakuman);
+ if(hand.type==='ron')return ceil100(base*(seat===dealer?6:4));
+ let total=0;
+ for(let payer=0;payer<4;payer++)if(payer!==seat)total+=ceil100(base*(seat===dealer||payer===dealer?2:1));
+ return total;
+}
 function statsMatchData(m,name){
  const i=m.names.indexOf(name),final=settlement(m),entry=final.byPlayer[i];
- let wins=0,dealin=0,riichi=0,tenpai=0,handsCount=0,drawCount=0,drawTenpai=0;
+ let wins=0,dealin=0,riichi=0,tenpai=0,handsCount=0,drawCount=0,drawTenpai=0,winningPoints=0,scoredWins=0;
  (m.hands||[]).forEach(h=>{
   if(!h)return;
   handsCount++;if(h.type==='draw'){drawCount++;if(new Set([...(h.tenpai||[]),...(h.riichi||[])]).has(i))drawTenpai++;}
-  if((h.winners||[]).includes(i))wins++;
+  if((h.winners||[]).includes(i)){wins++;const p=statsBaseWinningPoints(h,i);if(p!==null){winningPoints+=p;scoredWins++;}}
   if(h.type==='ron'&&h.loser===i)dealin++;
   if((h.riichi||[]).includes(i))riichi++;
   if(new Set([...(h.tenpai||[]),...(h.riichi||[]),...(h.winners||[])]).has(i))tenpai++;
  });
- return {score:entry.score,rank:entry.rank,points:entry.points,raw:Number(m.points[i])-25000,wins,dealin,riichi,tenpai,handsCount,drawCount,drawTenpai};
+ return {score:entry.score,rank:entry.rank,points:entry.points,raw:Number(m.points[i])-25000,wins,dealin,riichi,tenpai,handsCount,drawCount,drawTenpai,winningPoints,scoredWins};
 }
 function statsAggregate(matches,name){
  const games=matches.map(m=>statsMatchData(m,name));
  const sum=key=>games.reduce((total,g)=>total+g[key],0);
  const count=games.length;
  return {name,count,score:sum('score'),raw:sum('raw'),avgRank:count?sum('rank')/count:null,avgPoints:count?sum('points')/count:null,
-  ranks:[1,2,3,4].map(n=>games.filter(g=>g.rank===n).length),wins:sum('wins'),dealin:sum('dealin'),riichi:sum('riichi'),tenpai:sum('tenpai'),handsCount:sum('handsCount'),drawCount:sum('drawCount'),drawTenpai:sum('drawTenpai'),games};
+  ranks:[1,2,3,4].map(n=>games.filter(g=>g.rank===n).length),wins:sum('wins'),dealin:sum('dealin'),riichi:sum('riichi'),tenpai:sum('tenpai'),handsCount:sum('handsCount'),drawCount:sum('drawCount'),drawTenpai:sum('drawTenpai'),winningPoints:sum('winningPoints'),scoredWins:sum('scoredWins'),games};
 }
 function statsSigned(value,digits=1){return `${value>0?'+':''}${Number(value).toLocaleString('ja-JP',{minimumFractionDigits:digits,maximumFractionDigits:digits})}`}
 function statsEscJS(str){return JSON.stringify(str).replace(/</g,'\\u003c').replace(/>/g,'\\u003e').replace(/&/g,'\\u0026').replace(/'/g,'\\u0027')}
@@ -789,6 +803,8 @@ function statsPercent(num,den){return den?(100*num/den).toFixed(1)+'%':'—'}
 function statsDetail(data){
  const rate=i=>data.count?(data.ranks[i]/data.count*100).toFixed(1)+'%':'0.0%';
  return `<div class="stats-key-grid"><div class="stats-key"><small>半荘数</small><strong>${data.count}</strong></div><div class="stats-key"><small>平均順位</small><strong>${data.avgRank===null?'-':data.avgRank.toFixed(2)}</strong></div><div class="stats-key"><small>総ポイント</small><strong class="${data.score>=0?'positive':'negative'}">${statsSigned(data.score)}pt</strong></div><div class="stats-key"><small>平均最終持ち点</small><strong>${data.avgPoints===null?'-':Math.round(data.avgPoints).toLocaleString()}点</strong></div></div>
+ <div class="stats-detail-heading">和了打点</div>
+ <div class="stats-key-grid"><div class="stats-key"><small>平均打点（本場・供託・リーチ棒を除く）</small><strong>${data.scoredWins?Math.round(data.winningPoints/data.scoredWins).toLocaleString('ja-JP')+'点':'—'}</strong><div class="small muted">集計できた和了：${data.scoredWins}回 / 全${data.wins}回</div></div></div>
  <div class="stats-detail-heading">順位分布</div><div class="stats-rank-dist">${data.ranks.map((c,i)=>`<div><span>${i+1}位</span><div class="stats-bar-track"><div class="stats-bar-fill" style="width:${data.count?100*c/data.count:0}%"></div></div><span>${c}回 (${rate(i)})</span></div>`).join('')}</div>
  <div class="stats-detail-heading">局別成績</div><div class="stats-key-grid">${[['和了',data.wins,statsPercent(data.wins,data.handsCount)],['放銃',data.dealin,statsPercent(data.dealin,data.handsCount)],['立直',data.riichi,statsPercent(data.riichi,data.handsCount)],['聴牌記録',data.tenpai,statsPercent(data.tenpai,data.handsCount)],['流局時聴牌',data.drawTenpai,statsPercent(data.drawTenpai,data.drawCount)]].map(([label,value,ratio])=>`<div class="stats-key"><small>${label}</small><strong>${ratio}</strong><div class="small muted">${value}/${label==='流局時聴牌'?data.drawCount:data.handsCount}</div></div>`).join('')}</div>
  <div class="small muted stats-note">各項目の下段は回数／対象局数です。流局時聴牌率のみ、通常流局の回数を分母とします。聴牌記録は和了・立直を含み、すべての聴牌を網羅するものではありません。</div>`;

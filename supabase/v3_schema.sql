@@ -1,6 +1,8 @@
 -- Mahjong Record v3: private rooms and safe, versioned match snapshots.
 -- Execute in Supabase SQL editor on a NEW project after reviewing the schema.
 -- Requires Supabase Auth and PostgreSQL 14+ (built-in SHA-256). No service_role credentials in browser.
+-- Run the complete file in one transaction to avoid temporary RPC grants.
+begin;
 
 create table if not exists public.mahjong_rooms (
   id uuid primary key default gen_random_uuid(),
@@ -175,3 +177,5 @@ grant execute on function public.mahjong_create_room(text),
 
 -- For Supabase Realtime, add mahjong_room_matches to supabase_realtime publication
 -- manually after RLS checks and the application's membership logic are tested.
+
+commit;

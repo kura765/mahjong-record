@@ -19,7 +19,7 @@
 <h2>保存済みの半荘</h2><p id="metaStatus" class="small"></p><ul id="matches"></ul><button class="secondary" id="export" disabled>v2.22互換バックアップを書き出す</button>
 <div id="ownerPull" style="border:1px solid #dce4ee;border-radius:12px;padding:12px;margin:12px 0">
 <h2>クラウドから試験入力へ取り込む</h2>
-<p class="small">ローカルとクラウドの記録を同期基準と比較します。変更が衝突する場合や、設定が変わっている場合は取り込みません。確認後のみローカルに保存します。</p>
+<p class="small">ローカルとクラウドの記録を同期基準と比較します。新しい端末にまだ記録がなければ、クラウドから初期復元できます。衝突や設定変更がある場合は取り込みません。</p>
 <button id="comparePull" class="secondary">差分を確認</button>
 <div id="pullReview" class="hidden"><p id="pullStatus"></p><button id="downloadLocalBeforePull" class="secondary">現在の試験入力をバックアップ</button>
 <label style="display:flex;align-items:center;gap:8px;font-weight:normal;font-size:13px"><input type="checkbox" id="pullBackupConfirmed" style="width:auto;margin:0">バックアップファイルを保存・確認しました</label>
@@ -353,6 +353,7 @@ $("pullBackupConfirmed").onchange=()=>{$("applyPull").disabled=!pullPlan||!$("pu
 $("downloadLocalBeforePull").onclick=()=>{
  try{
   if(!pullPlan)throw Error("差分を再確認してください。");
+  if(pullPlan.localRaw===null)throw Error("この端末にはまだバックアップする試験入力データがありません。クラウド側のバックアップを別途保存してください。");
   filename(JSON.parse(pullPlan.localRaw),"mahjong-before-cloud-pull");
  }catch(e){err(e);}
 };
@@ -362,17 +363,33 @@ $("comparePull").onclick=async()=>{
   if(autoSyncEnabled)throw Error("先に自動反映を停止してください。");
   if(!currentRoom||!me||currentRoom.owner_id!==me.id)throw Error("ルーム作成者のみ実行できます。");
   const roomId=currentRoom.id,localRaw=localStorage.getItem("mahjongV3Trial");
-  if(!localRaw)throw Error("この端末にv3.0試験入力データがありません。");
-  const local=checkedBackup(JSON.parse(localRaw)),checkpoint=loadCheckpoint(roomId);
+  const checkpoint=loadCheckpoint(roomId);
+  if(!localRaw&&checkpoint)throw Error("ローカル記録がなく同期基準だけ残っています。復元前に状況を確認してください。");
+  const local=localRaw?checkedBackup(JSON.parse(localRaw)):null;
   const {data:records,error}=await sb.from("mahjong_room_matches").select("match_key,payload,version").eq("room_id",roomId);
   if(error)throw error;
   const {data:settings,error:metaError}=await sb.from("mahjong_room_backup_meta").select("payload").eq("room_id",roomId).maybeSingle();
   if(metaError)throw metaError;
   if(currentRoom?.id!==roomId)throw Error("ルームが変わりました。");
-  const result=comparePullData(local,checkpoint,settings?.payload,(records||[]));
+  let result;
+  if(local){
+   result=comparePullData(local,checkpoint,settings?.payload,(records||[]));
+  }else{
+   if(!settings?.payload)throw Error("クラウドにバックアップ設定がありません。");
+   const merged=reconstructBackup(settings.payload,(records||[]).map(x=>({match_key:x.match_key,payload:x.payload})));
+   checkedBackup(merged);
+   const newCheckpoint={schema:1,roomId,meta:settings.payload,items:{}};
+   for(const rec of records||[]){
+    if(!Number.isSafeInteger(rec.version)||rec.version<1)throw Error("クラウドの版番号が不正です。");
+    newCheckpoint.items[rec.match_key]={version:rec.version,payload:rec.payload};
+   }
+   result={merged,checkpoint:newCheckpoint,pulled:(records||[]).length,preserved:0,initial:true};
+  }
   pullPlan={...result,roomId,localRaw,remoteFingerprint:stableJson({records,meta:settings?.payload})};
   $("pullReview").classList.remove("hidden");
-  $("pullStatus").textContent="クラウドから取り込む変更："+result.pulled+"件。端末の未反映変更："+result.preserved+"件（維持）。";
+  $("downloadLocalBeforePull").disabled=result.initial;
+  $("pullBackupConfirmed").checked=false;
+  $("pullStatus").textContent=(result.initial?"新しい端末へ初期復元します。 ":"")+"クラウドから取り込む変更："+result.pulled+"件。端末の未反映変更："+result.preserved+"件（維持）。";
   $("applyPull").disabled=true;
   notice("差分比較が完了しました。ローカルデータは変更していません。","ok");
  }catch(e){invalidatePull();err(e);}
@@ -394,7 +411,7 @@ $("applyPull").onclick=async()=>{
    throw Error("確認中に記録か対象ルームが変わりました。最初から比較してください。");
   // Stage recovery first; never overwrite original v2.22 keys.
   const next=JSON.stringify(plan.merged);
-  localStorage.setItem("mahjongV3Trial_recovery",plan.localRaw);
+  if(plan.localRaw!==null)localStorage.setItem("mahjongV3Trial_recovery",plan.localRaw);
   localStorage.setItem("mahjongV3Trial",next);
   if(localStorage.getItem("mahjongV3Trial")!==next)throw Error("ローカル書き込みの検証に失敗しました。");
   localStorage.setItem(checkpointKey(plan.roomId),JSON.stringify(plan.checkpoint));

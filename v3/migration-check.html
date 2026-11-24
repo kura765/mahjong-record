@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>麻雀対局記録サイト | v3.0 移行前チェック</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif;color:#192536;background:#f5f7fa}*{box-sizing:border-box}
+body{margin:0}main{max-width:760px;margin:auto;padding:22px 15px 70px}.card{background:white;border:1px solid #dce3ed;border-radius:16px;padding:20px;margin:16px 0}
+h1{font-size:23px}h2{font-size:18px;margin:0 0 13px}p{line-height:1.65}.small{font-size:13px;color:#667085}
+input[type=file]{width:100%;max-width:100%;padding:14px;border:1px dashed #8192aa;border-radius:10px}
+button,.link{border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:700;padding:13px 18px;cursor:pointer;display:inline-block;text-decoration:none}
+button:disabled{background:#a4abb9;cursor:default}.secondary{background:#edf3ff;color:#1d4ed8}
+li{margin:7px 0;overflow-wrap:anywhere}.ok{color:#116a39}.warn{color:#a35b00}.error{color:#b42318}
+pre{white-space:pre-wrap;word-break:break-word;background:#f2f5f8;padding:14px;border-radius:12px;font-size:13px}
+summary{cursor:pointer;font-weight:650}#result[hidden]{display:none}
+</style></head><body><main>
+<a href="../index.html">← v2.22 の記録サイトに戻る</a>
+<h1>v3.0 移行前チェック</h1>
+<p>現在のバックアップに、クラウド共有への移行を妨げる重複や形式の問題がないかを確認します。<strong>この画面は検査専用です。</strong>クラウドへの送信、記録の削除、ブラウザ保存領域の書き換えは行いません。</p>
+<section class="card"><h2>1. バックアップファイルを選択</h2>
+<p class="small">v2.17〜v2.22 の「設定」→バックアップ書き出しで作成した JSON を選択してください。ファイルはブラウザの中だけで検査します。</p>
+<input id="file" type="file" accept=".json,application/json">
+<p id="fileStatus" aria-live="polite" class="small">ファイルはまだ選択されていません。</p></section>
+<section class="card" id="result" hidden><h2>2. 検査結果</h2><p id="verdict" role="status"></p><ul id="counts"></ul>
+<details><summary>詳細な検査メッセージ</summary><ul id="messages"></ul></details>
+<p class="small">エラーがある場合は移行せず、元の記録を修正するかバックアップを確認してください。問題がない場合も、クラウド反映前には再確認が必要です。</p>
+<button id="report" class="secondary" type="button">検査結果をJSONで保存</button></section>
+<section class="card"><h2>移行の安全基準</h2>
+<ul><li>保存済みの半荘・中断中・進行中の半荘をすべて検査する</li>
+<li>半荘IDの重複、四人分の氏名・点数・局記録を検査する</li>
+<li>プレイヤー固有IDの重複と参照不整合を検出する</li>
+<li>元データの名前・局履歴・ルールフォーマットを変更しない</li>
+<li>同一データの再取り込みによる二重登録を防ぐ仕組みはクラウド側でも実装する</li></ul>
+<p class="small">共有半荘・24時間招待リンク・友人の閲覧権限・Supabase接続は、この検査ツールではまだ実行できません。</p></section>
+</main><script>
+"use strict";
+const $=id=>document.getElementById(id);
+let lastReport=null;
+function issue(messages,severity,code,details){messages.push({severity,code,details});}
+function inspect(data){
+ const messages=[], stats={completed:0,suspended:0,active:0,hands:0,players:0,formats:0}, seen=new Map();
+ if(!data||typeof data!=="object"||Array.isArray(data))throw Error("バックアップのトップレベルはオブジェクトである必要があります。");
+ if(!Array.isArray(data.players)||!data.players.every(x=>typeof x==="string"))issue(messages,"error","INVALID_PLAYERS","players は名前の配列である必要があります。");
+ const matchLists=[["completed",data.matches],["suspended",data.suspendedMatches===undefined?[]:data.suspendedMatches],["active",data.active===null||data.active===undefined?[]:[data.active]]];
+ if(!Array.isArray(data.matches))issue(messages,"error","INVALID_MATCHES","matches が配列ではありません。");
+ if(data.suspendedMatches!==undefined&&!Array.isArray(data.suspendedMatches))issue(messages,"error","INVALID_SUSPENDED","suspendedMatches が配列ではありません。");
+ if(data.active!==undefined&&data.active!==null&&(typeof data.active!=="object"||Array.isArray(data.active)))issue(messages,"error","INVALID_ACTIVE","active が不正です。");
+ const registry=Array.isArray(data.playerRegistry)?data.playerRegistry:null;
+ const registryIds=new Set();
+ if(registry){
+  for(const [i,p] of registry.entries()){
+   if(!p||typeof p!=="object"||typeof p.id!=="string"||!p.id||typeof p.name!=="string"||typeof p.deleted!=="boolean")issue(messages,"error","INVALID_PLAYER_ID","playerRegistry["+i+"] の形式が不正です。");
+   else if(registryIds.has(p.id))issue(messages,"error","DUPLICATE_PLAYER_ID","固有IDが重複しています: "+p.id);
+   else registryIds.add(p.id);
+  }
+  stats.players=registry.length;
+ }else{
+  stats.players=Array.isArray(data.players)?data.players.length:0;
+  issue(messages,"warning","LEGACY_PLAYER_IDENTITIES","プレイヤーの固有IDがありません。移行時に名前から自動統合せず、過去の削除・再登録履歴を確認してください。");
+ }
+ const validRules=r=>r&&typeof r==="object"&&Number.isSafeInteger(r.start)&&Number.isSafeInteger(r.return)&&Number.isSafeInteger(r.oka)&&Number.isSafeInteger(r.threshold)&&Array.isArray(r.uma)&&r.uma.length===4&&r.uma.every(Number.isSafeInteger)&&r.uma.reduce((a,b)=>a+b,0)===0;
+ if(data.rules!=null&&!validRules(data.rules))issue(messages,"error","INVALID_RULES","現在のルール形式が不正です。");
+ if(data.ruleFormats!==undefined){
+  if(!Array.isArray(data.ruleFormats))issue(messages,"error","INVALID_FORMATS","ruleFormats が配列ではありません。");
+  else{
+   stats.formats=data.ruleFormats.length;const ids=new Set(),names=new Set();
+   data.ruleFormats.forEach((f,i)=>{
+    if(!f||typeof f.id!=="string"||!f.id||typeof f.name!=="string"||!f.name.trim()||!validRules(f.rules))issue(messages,"error","INVALID_FORMAT","フォーマット "+(i+1)+" の形式が不正です。");
+    else{
+     if(ids.has(f.id)||names.has(f.name))issue(messages,"error","DUPLICATE_FORMAT","フォーマットの名称またはIDが重複しています: "+f.name);
+     ids.add(f.id);names.add(f.name);
+    }
+   });
+   if(data.selectedRuleFormat&& !ids.has(data.selectedRuleFormat))issue(messages,"error","MISSING_SELECTED_FORMAT","選択中のフォーマットが見つかりません。");
+  }
+ }
+ for(const [type,list] of matchLists){
+  if(!Array.isArray(list))continue;
+  stats[type]=list.length;
+  for(const [i,m] of list.entries()){
+   const label=type+"[" +i+"]";
+   if(!m||typeof m!=="object"||Array.isArray(m)){issue(messages,"error","INVALID_MATCH",label+" がオブジェクトではありません。");continue;}
+   if(!(typeof m.id==="string"||Number.isSafeInteger(m.id))||String(m.id).trim()==="")issue(messages,"error","MISSING_MATCH_ID",label+" の半荘IDが不正です。");
+   else{
+    const id=String(m.id);
+    if(seen.has(id))issue(messages,"error","DUPLICATE_MATCH_ID",label+" と "+seen.get(id)+" の半荘IDが重複: "+id);
+    else seen.set(id,label);
+   }
+   if(!Array.isArray(m.names)||m.names.length!==4||!m.names.every(x=>typeof x==="string"&&x.trim()))issue(messages,"error","INVALID_MATCH_NAMES",label+" の参加者名が4人分ありません。");
+   if(!Array.isArray(m.points)||m.points.length!==4||!m.points.every(Number.isSafeInteger))issue(messages,"error","INVALID_MATCH_POINTS",label+" の点数が整数4人分ではありません。");
+   if(!Array.isArray(m.hands))issue(messages,"error","INVALID_HANDS",label+" の局記録が配列ではありません。");
+   else stats.hands+=m.hands.length;
+   if(registry){
+    if(!Array.isArray(m.playerIds)||m.playerIds.length!==4||!m.playerIds.every(id=>typeof id==="string"&&registryIds.has(id)))issue(messages,"error","INVALID_MATCH_PLAYER_IDS",label+" のプレイヤー固有IDが登録表を正しく参照していません。");
+    else if(new Set(m.playerIds).size!==4)issue(messages,"error","REPEATED_MATCH_PLAYER",label+" の4席でプレイヤー固有IDが重複しています。");
+   }
+  }
+ }
+ if(stats.completed+stats.suspended+stats.active===0)issue(messages,"warning","NO_MATCHES","検査対象の半荘がありません。");
+ return {toolVersion:"v3.0-migration-check-1",checkedAt:new Date().toISOString(),stats,messages,passed:!messages.some(m=>m.severity==="error"),cloudImported:false};
+}
+function show(report){
+ lastReport=report;$("result").hidden=false;
+ const errors=report.messages.filter(x=>x.severity==="error").length,warnings=report.messages.filter(x=>x.severity==="warning").length;
+ $("verdict").className=errors?"error":warnings?"warn":"ok";
+ $("verdict").textContent=errors?"移行前の修正が必要です（エラー "+errors+" 件）":warnings?"基本検査を通過しました（注意 "+warnings+" 件）":"基本検査を通過しました。";
+ const s=report.stats;
+ $("counts").replaceChildren(...[["完了半荘",s.completed],["中断中",s.suspended],["進行中",s.active],["局記録",s.hands],["プレイヤー",s.players],["ルールフォーマット",s.formats]].map(([k,v])=>{const li=document.createElement("li");li.textContent=k+"： "+v+" 件";return li;}));
+ $("messages").replaceChildren(...(report.messages.length?report.messages:[{severity:"ok",code:"NO_ISSUES",details:"形式上の問題は見つかりませんでした。"}]).map(m=>{const li=document.createElement("li");li.className=m.severity;li.textContent="["+m.code+"] "+m.details;return li;}));
+}
+$("file").addEventListener("change",async e=>{
+ lastReport=null;$("result").hidden=true;
+ const file=e.target.files?.[0];if(!file)return;
+ if(file.size>25*1024*1024){$("fileStatus").textContent="25MBを超えるファイルは検査できません。";return;}
+ $("fileStatus").textContent="選択したファイル: "+file.name;
+ try{show(inspect(JSON.parse(await file.text())));}
+ catch(err){$("fileStatus").textContent="検査できません: "+String(err.message||err);}
+});
+$("report").addEventListener("click",()=>{
+ if(!lastReport)return;
+ const url=URL.createObjectURL(new Blob([JSON.stringify(lastReport,null,2)],{type:"application/json"}));
+ const a=document.createElement("a");a.href=url;a.download="mahjong-v3-migration-check.json";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);
+});
+</script></body></html>

@@ -12,8 +12,11 @@
 .match-activity-table th:first-child{text-align:left;max-width:105px;overflow:hidden;text-overflow:ellipsis}
 .match-activity-table tr:last-child>*{border-bottom:0}
 .score-preview{margin-top:10px;padding:11px 12px;border-radius:10px;background:#eaf1ff;color:#1e3a69;font-size:13px;line-height:1.65}.score-preview strong{font-size:16px}.score-preview .muted{color:#526581}.nav button.active{color:var(--accent);background:var(--accent2)}.hidden{display:none!important}.notice{background:#fff8e8;border:1px solid #f2dfb2;color:#795b1a;border-radius:12px;padding:11px;font-size:12px;line-height:1.6}.table{width:100%;border-collapse:collapse;font-size:13px}.table th,.table td{padding:10px 7px;border-bottom:1px solid var(--line);text-align:left}.table th{color:var(--muted);font-size:11px}.actions{display:flex;gap:8px;flex-wrap:wrap}.actions .btn{flex:1}.footnote{font-size:11px;color:var(--muted);line-height:1.6;margin:12px 3px}.tag{font-size:10px;padding:4px 7px;background:#eef2f7;border-radius:99px;color:#586273}
-@media(min-width:700px){.content{padding:14px 24px 30px}.top{padding:24px 26px 12px}.h1{font-size:27px}.card{padding:20px}.players{grid-template-columns:repeat(4,1fr)}.seat-grid{grid-template-columns:repeat(4,1fr)}.nav{position:sticky;top:0;bottom:auto;border:0;border-bottom:1px solid var(--line);padding:8px;background:rgba(245,246,248,.94)}.navin{max-width:800px}.app{padding-bottom:20px}}
+@media(min-width:700px){.content{padding:14px 24px 30px}.top{padding:24px 26px 12px}.h1{font-size:27px}.card{padding:20px}.players{grid-template-columns:repeat(4,1fr)}.seat-grid{grid-template-columns:repeat(4,1fr)}.nav{position:fixed;top:auto;bottom:0;border-top:1px solid var(--line);border-bottom:0;padding:8px;background:rgba(245,246,248,.94)}.navin{max-width:800px}.app{padding-bottom:90px}}
 
+.record-match-choice{display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:100%;border:1px solid var(--line);border-radius:11px;background:#fff;padding:12px;margin:7px 0;cursor:pointer;text-align:left;color:var(--ink)}
+.record-match-choice.selected{background:var(--accent2);border-color:var(--accent);color:var(--accent)}
+.record-match-choice strong{font-size:15px;overflow-wrap:anywhere}
 /* User-requested mobile layout refinements */
 .checklist{display:grid!important;grid-template-columns:1fr!important;gap:0!important;border:1px solid var(--line);border-radius:13px;padding:0 12px;background:#fff}
 .check{display:flex;align-items:center;gap:11px;padding:13px 4px;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent;min-height:48px}
@@ -269,7 +272,7 @@
 <div id="startError" class="start-error hidden" role="alert" aria-live="assertive"></div>
 <div class="actions"><button class="btn full" onclick="newMatch()">この4人で半荘を開始</button><button class="btn ghost" onclick="cancelStartForm()">キャンセル</button></div>
 </div></div><div class="stats"><div class="stat"><strong id="matchCount">0</strong><span>保存した半荘</span></div><div class="stat"><strong id="playerCount">0</strong><span>登録プレイヤー</span></div><div class="stat"><strong id="totalHands">0</strong><span>記録した局数</span></div></div><div class="card" style="margin-top:13px"><h2>最近の対局</h2><div id="recentMatches" class="empty">まだ対局記録がありません。</div></div><div class="notice" id="backupReminder"><strong>記録の消失を防ぐために</strong><p class="small">Safariの保存領域は長期間利用しないと削除される場合があります。iPhoneではホーム画面に追加して使い、定期的にJSONバックアップを「ファイル」アプリ等に保管してください。</p><p class="small" id="lastBackupLabel">バックアップ操作：まだありません。</p><button class="btn secondary" onclick="exportData()">今すぐバックアップを保存</button></div></section>
-<section class="page" id="record"><div class="h1">対局記録</div><div id="noMatch" class="card empty">対局がありません。ホームから新しい半荘を開始してください。</div><div id="matchArea" class="hidden"><div class="card"><div class="row between"><strong id="recordTitleLabel">半荘</strong><button class="btn ghost" onclick="toggleMatchMeta('active')">名称・日付を編集</button></div><div id="matchMetaActive" class="hidden"></div></div><div class="card"><div class="handhead"><div><div class="small muted">現在の局</div><div class="round" id="roundLabel">東1局</div></div><span class="chip" id="honbaLabel">0本場 ・ 供託0本</span></div><div class="players" id="scorePlayers"></div></div>
+<section class="page" id="record"><div class="h1">対局記録</div><div class="card"><h2>記録する半荘を選択</h2><div id="recordMatchList"></div></div><div id="noMatch" class="card empty">記録する半荘を選んでください。新しい半荘はホームから開始できます。</div><div id="matchArea" class="hidden"><div class="card"><div class="row between"><strong id="recordTitleLabel">半荘</strong><button class="btn ghost" onclick="toggleMatchMeta('active')">名称・日付を編集</button></div><div id="matchMetaActive" class="hidden"></div></div><div class="card"><div class="handhead"><div><div class="small muted">現在の局</div><div class="round" id="roundLabel">東1局</div></div><span class="chip" id="honbaLabel">0本場 ・ 供託0本</span></div><div class="players" id="scorePlayers"></div></div>
 <div class="card"><h2>局の結果</h2><div class="field"><label>結果の種類</label><div class="choice"><label><input type="radio" name="resultType" value="ron" checked onchange="toggleResult()"><span>ロン</span></label><label><input type="radio" name="resultType" value="tsumo" onchange="toggleResult()"><span>ツモ</span></label><label><input type="radio" name="resultType" value="draw" onchange="toggleResult()"><span>流局</span></label><label><input type="radio" name="resultType" value="intermediate" onchange="toggleResult()"><span>途中流局</span></label></div></div>
 <div id="winFields"><div class="win-select-row"><div class="field"><label>和了者</label><div class="checklist" id="winnerList"></div></div><div class="field" id="loserField"><label>放銃者</label><div class="checklist" id="loserList"></div><select id="loser" class="hidden" aria-hidden="true" tabindex="-1"></select></div></div><div id="winnerDetails"></div></div>
 <div id="drawFields" class="hidden"><div class="win-select-row"><div class="field"><label>聴牌者</label><div class="checklist" id="tenpaiList"></div></div></div></div>
@@ -438,7 +441,7 @@ document.addEventListener('gesturechange',event=>{
 document.addEventListener('touchmove',event=>{
  if(preventZoom&&event.touches.length>1&&event.cancelable)event.preventDefault();
 },{passive:false});
-function blank(){return {players:[],matches:[],active:null,rules:null,ruleFormats:[],selectedRuleFormat:null}}
+function blank(){return {players:[],matches:[],active:null,suspendedMatches:[],rules:null,ruleFormats:[],selectedRuleFormat:null}}
 function load(){
  let primary,secondary;
  try{primary=localStorage.getItem(KEY);secondary=localStorage.getItem(RECOVERY_KEY);}
@@ -487,7 +490,7 @@ function compactMatchDay(day){return /^\d{4}-\d{2}-\d{2}$/.test(day)?day.replace
 function automaticMatchTitle(day){
  const prefix=compactMatchDay(day);if(!prefix)return '';
  const pattern=new RegExp('^'+prefix+'_(\\d+)$');
- const all=[...(Array.isArray(db.matches)?db.matches:[]),...(db.active?[db.active]:[])];
+ const all=[...(Array.isArray(db.matches)?db.matches:[]),...(Array.isArray(db.suspendedMatches)?db.suspendedMatches:[]),...(db.active?[db.active]:[])];
  const used=new Set();
  for(const m of all){const match=String(m.title||'').match(pattern);if(match)used.add(Number(match[1]));}
  let n=1;while(used.has(n))n++;
@@ -500,7 +503,7 @@ function fillAutoTitle(){
 function startTitleWasEdited(){startTitleCustomized=!!document.getElementById('startMatchTitle').value.trim()}
 function updateStartDateDisplay(){const el=document.getElementById('startMatchDateDisplay');if(!el)return;const v=document.getElementById('startMatchDate').value;el.textContent=/^\d{4}-\d{2}-\d{2}$/.test(v)?v.replace(/-/g,'/'):'日付を選択'}
 function startDateChanged(){updateStartDateDisplay();if(!startTitleCustomized||!document.getElementById('startMatchTitle').value.trim())fillAutoTitle()}
-function showStartForm(){if(db.active){showPage('record');return;}document.getElementById('startForm').classList.remove('hidden');for(let i=0;i<4;i++){let el=document.getElementById('startPlayer'+i);if(!el.value)el.value='';}document.getElementById('startMatchDate').value=statsLocalDay(new Date());updateStartDateDisplay();if(!startTitleCustomized||!document.getElementById('startMatchTitle').value.trim())fillAutoTitle();syncStartPlayerChoices();closeStartPlayerChoices();applyRuleFields(db.rules||ruleDefaults(),'start');updateRuleFormatSelects();} 
+function showStartForm(){if(db.active){alert('進行中の半荘があります。「中断して保存」してから新しい半荘を開始してください。');showPage('record');return;}document.getElementById('startForm').classList.remove('hidden');for(let i=0;i<4;i++){let el=document.getElementById('startPlayer'+i);if(!el.value)el.value='';}document.getElementById('startMatchDate').value=statsLocalDay(new Date());updateStartDateDisplay();if(!startTitleCustomized||!document.getElementById('startMatchTitle').value.trim())fillAutoTitle();syncStartPlayerChoices();closeStartPlayerChoices();applyRuleFields(db.rules||ruleDefaults(),'start');updateRuleFormatSelects();} 
 function cancelStartForm(){clearStartError();closeStartPlayerChoices();document.getElementById('startForm').classList.add('hidden')}
 function closeStartPlayerChoices(){
  for(let i=0;i<4;i++){
@@ -551,8 +554,8 @@ function showStartError(missing){
  missing.forEach(i=>document.getElementById('startPlayer'+i).classList.add('start-invalid'));
  document.getElementById('startPlayer'+missing[0]).focus();
 }
-function newMatch(){if(db.active){alert('進行中または中断中の対局があります。先にその対局を再開・完了してください。');showPage('record');return;}clearStartError();let names=[0,1,2,3].map(i=>document.getElementById('startPlayer'+i).value.trim());let missing=names.map((n,i)=>n?-1:i).filter(i=>i>=0);if(missing.length){showStartError(missing);return;}if(new Set(names).size!==4){const error=document.getElementById('startError');error.textContent='同じプレイヤーを複数の家に指定できません。';error.classList.remove('hidden');names.forEach((n,i)=>{if(names.indexOf(n)!==i)document.getElementById('startPlayer'+i).classList.add('start-invalid')});return;}let chosenRules;try{chosenRules=JSON.parse(JSON.stringify(validateRules(ruleInput('start'))))}catch(e){ruleErrorMessage(e.message,'start');document.getElementById('startRulesDetails').open=true;return;}names.forEach(n=>{if(!db.players.includes(n))db.players.push(n)});const title=document.getElementById('startMatchTitle').value.trim()||automaticMatchTitle(document.getElementById('startMatchDate').value||statsLocalDay(new Date()));const day=document.getElementById('startMatchDate').value||statsLocalDay(new Date());if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||!Number.isFinite(new Date(day+'T12:00:00').getTime())){alert('正しい対局日を入力してください。');return;}db.active={id:Date.now(),title,date:day+'T12:00:00',names,rules:chosenRules,points:Array(4).fill(chosenRules.start),dealer:0,round:0,honba:0,sticks:0,hands:[],status:'進行中'};undoStack=[];save();document.getElementById('startForm').classList.add('hidden');document.getElementById('startMatchTitle').value='';startTitleCustomized=false;showPage('record')}
-function renderHome(){updateBackupReminder();document.getElementById('matchCount').textContent=db.matches.length;document.getElementById('playerCount').textContent=db.players.length;document.getElementById('totalHands').textContent=db.matches.reduce((a,m)=>a+(m.hands?.length||0),0)+(db.active?.hands.length||0);document.getElementById('homeCurrent').textContent=db.active?`${db.active.title?db.active.title+' ・ ':''}${db.active.names.join('・')}`:'対局はありません';document.getElementById('homeTag').textContent=db.active?(db.active.status==='中断'?'中断':'進行中'):'待機中';document.getElementById('resumeBtn').classList.toggle('hidden',!db.active);let r=document.getElementById('recentMatches');if(!db.matches.length)r.className='empty',r.textContent='まだ対局記録がありません。';else r.className='',r.innerHTML=db.matches.slice(-3).reverse().map(m=>`<div class="logitem"><div class="logtitle">${esc(m.title||m.names.join(' / '))}</div><div class="small muted">${new Date(m.date).toLocaleDateString('ja-JP')} ・ ${m.hands.length}局 ・ 完了</div></div>`).join('')}
+function newMatch(){if(db.active){alert('進行中の半荘があります。先に中断して保存してください。');showPage('record');return;}clearStartError();let names=[0,1,2,3].map(i=>document.getElementById('startPlayer'+i).value.trim());let missing=names.map((n,i)=>n?-1:i).filter(i=>i>=0);if(missing.length){showStartError(missing);return;}if(new Set(names).size!==4){const error=document.getElementById('startError');error.textContent='同じプレイヤーを複数の家に指定できません。';error.classList.remove('hidden');names.forEach((n,i)=>{if(names.indexOf(n)!==i)document.getElementById('startPlayer'+i).classList.add('start-invalid')});return;}let chosenRules;try{chosenRules=JSON.parse(JSON.stringify(validateRules(ruleInput('start'))))}catch(e){ruleErrorMessage(e.message,'start');document.getElementById('startRulesDetails').open=true;return;}names.forEach(n=>{if(!db.players.includes(n))db.players.push(n)});const title=document.getElementById('startMatchTitle').value.trim()||automaticMatchTitle(document.getElementById('startMatchDate').value||statsLocalDay(new Date()));const day=document.getElementById('startMatchDate').value||statsLocalDay(new Date());if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||!Number.isFinite(new Date(day+'T12:00:00').getTime())){alert('正しい対局日を入力してください。');return;}db.active={id:Date.now(),title,date:day+'T12:00:00',names,rules:chosenRules,points:Array(4).fill(chosenRules.start),dealer:0,round:0,honba:0,sticks:0,hands:[],status:'進行中'};undoStack=[];save();document.getElementById('startForm').classList.add('hidden');document.getElementById('startMatchTitle').value='';startTitleCustomized=false;showPage('record')}
+function renderHome(){updateBackupReminder();document.getElementById('matchCount').textContent=db.matches.length;document.getElementById('playerCount').textContent=db.players.length;document.getElementById('totalHands').textContent=db.matches.reduce((a,m)=>a+(m.hands?.length||0),0)+(db.suspendedMatches||[]).reduce((a,m)=>a+(m.hands?.length||0),0)+(db.active?.hands.length||0);document.getElementById('homeCurrent').textContent=db.active?`${db.active.title?db.active.title+' ・ ':''}${db.active.names.join('・')}`:(db.suspendedMatches?.length?'中断中の半荘が'+db.suspendedMatches.length+'件あります':'対局はありません');document.getElementById('homeTag').textContent=db.active?'進行中':(db.suspendedMatches?.length?'中断あり':'待機中');document.getElementById('resumeBtn').classList.toggle('hidden',!db.active);let r=document.getElementById('recentMatches');if(!db.matches.length)r.className='empty',r.textContent='まだ対局記録がありません。';else r.className='',r.innerHTML=db.matches.slice(-3).reverse().map(m=>`<div class="logitem"><div class="logtitle">${esc(m.title||m.names.join(' / '))}</div><div class="small muted">${new Date(m.date).toLocaleDateString('ja-JP')} ・ ${m.hands.length}局 ・ 完了</div></div>`).join('')}
 function seatIndex(a,i){return (i-a.dealer+4)%4}
 function seatName(a,i){return ['東','南','西','北'][seatIndex(a,i)]}
 function roundName(a){let wind=['東','南','西','北'][Math.floor(a.round/4)]||'北';return wind+(a.round%4+1)+'局'}
@@ -581,7 +584,35 @@ function showHandError(message){
  el.scrollIntoView({block:'nearest',behavior:'smooth'});
 }
 
-function renderRecord(){if(db.active){const el=document.getElementById('recordTitleLabel');if(el)el.textContent=db.active.title||'半荘';}let a=db.active;document.getElementById('noMatch').classList.toggle('hidden',!!a);document.getElementById('matchArea').classList.toggle('hidden',!a);if(!a)return;document.getElementById('roundLabel').textContent=roundName(a);document.getElementById('honbaLabel').textContent=`${a.honba}本場 ・ 供託${a.sticks}本`;const sortedSeats=rankIndices(a.points);const rankBySeat=Array(4);sortedSeats.forEach((seat,rank)=>rankBySeat[seat]=rank);document.getElementById('scorePlayers').innerHTML=a.names.map((n,i)=>{const rank=rankBySeat[i];const higher=a.points.filter(p=>p>a.points[i]);const gap=higher.length?Math.min(...higher)-a.points[i]:null;return `<div class="player"><div class="seat">${seatName(a,i)}家${i===a.dealer?' ・ 親':''}</div><div class="pname">${esc(n)}</div><div class="points">${a.points[i].toLocaleString()}<small style="font-size:11px">点</small></div><div class="small muted">${rank+1}位${gap===null?'':' ・ ひとつ上まで'+gap.toLocaleString()+'点差'}</div></div>`}).join('');let opts='<option value="">放銃者を選択</option>'+a.names.map((n,i)=>`<option value="${i}">${seatName(a,i)}家 ${esc(n)}</option>`).join('');document.getElementById('loser').innerHTML=opts;document.getElementById('loser').value='';if(document.getElementById('loserList'))document.getElementById('loserList').innerHTML=a.names.map((n,i)=>`<label class="check"><input type="radio" name="loserChoice" value="${i}" onchange="document.getElementById('loser').value=this.value;syncWinLoser()">${seatName(a,i)} ${esc(n)}</label>`).join('');document.getElementById('winnerList').innerHTML=a.names.map((n,i)=>`<label class="check"><input type="checkbox" value="${i}" class="winner" onchange="renderWinnerDetails();syncWinLoser()">${seatName(a,i)} ${esc(n)}</label>`).join('');document.getElementById('tenpaiList').innerHTML=a.names.map((n,i)=>`<label class="check"><input type="checkbox" value="${i}" class="tenpai">${seatName(a,i)} ${esc(n)}</label>`).join('');document.getElementById('riichiList').innerHTML=a.names.map((n,i)=>`<label class="check"><input type="checkbox" value="${i}" class="riichi" onchange="onRiichiChanged()">${seatName(a,i)} ${esc(n)}</label>`).join('');document.getElementById('handCountLabel').textContent=a.hands.length+'局';document.getElementById('handLog').innerHTML=a.hands.length?a.hands.slice().reverse().map((h,rev)=>`<div class="logitem hand-log-entry"><div class="row between" style="align-items:flex-start"><span></span><button class="btn ghost" style="min-height:34px;padding:6px 11px" onclick="openHandEditor('active',${a.hands.length-1-rev})">編集</button></div><div class="hand-log-result"><strong>${esc(h.label)}</strong> ・ ${esc(h.result)}</div>${h.riichi?.length?`<div class="hand-log-riichi">立直：${orderedHandPlayers(h,h.riichi).map(i=>esc(a.names[i]??String(i))).join('・')}</div>`:''}${h.awards?.length>1?`<div class="hand-log-delta">${h.awards.map(x=>`<span>${esc(a.names[x.player])} +${x.points.toLocaleString()}点</span>`).join('')}</div>`:''}<div class="hand-log-delta">${h.delta?h.delta.map((x,i)=>x?`<span class="${x>0?'positive':'negative'}">${esc(a.names[i])} ${x>0?'+':''}${x.toLocaleString()}</span>`:'').filter(Boolean).join(''):''}</div></div>`).join(''):'<div class="empty">まだ局の記録がありません。</div>';toggleResult()}
+function recordAvailableMatches(){
+ return [...(db.active?[db.active]:[]),...(db.suspendedMatches||[])];
+}
+function openRecordMatch(id){
+ const match=recordAvailableMatches().find(m=>String(m.id)===String(id));
+ if(!match)return;
+ if(db.active&&db.active.id!==match.id){
+  if(!confirm('現在の半荘を中断保存して「'+(match.title||'半荘')+'」を開きますか？入力途中の局は保存されません。'))return;
+  db.active.status='中断';
+  if(!Array.isArray(db.suspendedMatches))db.suspendedMatches=[];
+  db.suspendedMatches.push(db.active);
+  db.active=null;
+ }
+ if(!db.active){
+  const i=(db.suspendedMatches||[]).findIndex(m=>String(m.id)===String(id));
+  if(i<0)return;
+  db.active=db.suspendedMatches.splice(i,1)[0];
+  db.active.status='進行中';
+ }
+ undoStack=[];
+ save();
+ showPage('record');
+}
+function renderRecordMatchList(){
+ const el=document.getElementById('recordMatchList');if(!el)return;
+ const matches=recordAvailableMatches();
+ el.innerHTML=matches.length?matches.map(m=>`<button type="button" class="record-match-choice ${db.active&&db.active.id===m.id?'selected':''}" onclick="openRecordMatch(${JSON.stringify(String(m.id))})"><strong>${esc(m.title||m.names.join('・'))}</strong><span class="small muted">${esc(m.names.join('・'))} ・ ${m.hands.length}局 ・ ${m.status==='中断'?'中断中':'記録中'}</span></button>`).join(''):'<div class="small muted">記録中・中断中の半荘はありません。</div>';
+}
+function renderRecord(){renderRecordMatchList();if(db.active){const el=document.getElementById('recordTitleLabel');if(el)el.textContent=db.active.title||'半荘';}let a=db.active;document.getElementById('noMatch').classList.toggle('hidden',!!a);document.getElementById('matchArea').classList.toggle('hidden',!a);if(!a)return;document.getElementById('roundLabel').textContent=roundName(a);document.getElementById('honbaLabel').textContent=`${a.honba}本場 ・ 供託${a.sticks}本`;const sortedSeats=rankIndices(a.points);const rankBySeat=Array(4);sortedSeats.forEach((seat,rank)=>rankBySeat[seat]=rank);document.getElementById('scorePlayers').innerHTML=a.names.map((n,i)=>{const rank=rankBySeat[i];const higher=a.points.filter(p=>p>a.points[i]);const gap=higher.length?Math.min(...higher)-a.points[i]:null;return `<div class="player"><div class="seat">${seatName(a,i)}家${i===a.dealer?' ・ 親':''}</div><div class="pname">${esc(n)}</div><div class="points">${a.points[i].toLocaleString()}<small style="font-size:11px">点</small></div><div class="small muted">${rank+1}位${gap===null?'':' ・ ひとつ上まで'+gap.toLocaleString()+'点差'}</div></div>`}).join('');let opts='<option value="">放銃者を選択</option>'+a.names.map((n,i)=>`<option value="${i}">${seatName(a,i)}家 ${esc(n)}</option>`).join('');document.getElementById('loser').innerHTML=opts;document.getElementById('loser').value='';if(document.getElementById('loserList'))document.getElementById('loserList').innerHTML=a.names.map((n,i)=>`<label class="check"><input type="radio" name="loserChoice" value="${i}" onchange="document.getElementById('loser').value=this.value;syncWinLoser()">${seatName(a,i)} ${esc(n)}</label>`).join('');document.getElementById('winnerList').innerHTML=a.names.map((n,i)=>`<label class="check"><input type="checkbox" value="${i}" class="winner" onchange="renderWinnerDetails();syncWinLoser()">${seatName(a,i)} ${esc(n)}</label>`).join('');document.getElementById('tenpaiList').innerHTML=a.names.map((n,i)=>`<label class="check"><input type="checkbox" value="${i}" class="tenpai">${seatName(a,i)} ${esc(n)}</label>`).join('');document.getElementById('riichiList').innerHTML=a.names.map((n,i)=>`<label class="check"><input type="checkbox" value="${i}" class="riichi" onchange="onRiichiChanged()">${seatName(a,i)} ${esc(n)}</label>`).join('');document.getElementById('handCountLabel').textContent=a.hands.length+'局';document.getElementById('handLog').innerHTML=a.hands.length?a.hands.slice().reverse().map((h,rev)=>`<div class="logitem hand-log-entry"><div class="row between" style="align-items:flex-start"><span></span><button class="btn ghost" style="min-height:34px;padding:6px 11px" onclick="openHandEditor('active',${a.hands.length-1-rev})">編集</button></div><div class="hand-log-result"><strong>${esc(h.label)}</strong> ・ ${esc(h.result)}</div>${h.riichi?.length?`<div class="hand-log-riichi">立直：${orderedHandPlayers(h,h.riichi).map(i=>esc(a.names[i]??String(i))).join('・')}</div>`:''}${h.awards?.length>1?`<div class="hand-log-delta">${h.awards.map(x=>`<span>${esc(a.names[x.player])} +${x.points.toLocaleString()}点</span>`).join('')}</div>`:''}<div class="hand-log-delta">${h.delta?h.delta.map((x,i)=>x?`<span class="${x>0?'positive':'negative'}">${esc(a.names[i])} ${x>0?'+':''}${x.toLocaleString()}</span>`:'').filter(Boolean).join(''):''}</div></div>`).join(''):'<div class="empty">まだ局の記録がありません。</div>';toggleResult()}
 function syncWinLoser(){
  const type=document.querySelector('input[name=resultType]:checked')?.value;
  if(type!=='ron')return;
@@ -986,7 +1017,7 @@ function commitHand(){
  save();renderRecord();
 }
 function undoLast(){if(!undoStack.length){alert('取り消せる操作がありません。');return}db.active=JSON.parse(undoStack.pop());save();renderRecord()}
-function pauseMatch(){if(!db.active)return;db.active.status='中断';save();alert('対局を中断保存しました。ホームから再開できます。');showPage('home')}
+function pauseMatch(){if(!db.active)return;db.active.status='中断';if(!Array.isArray(db.suspendedMatches))db.suspendedMatches=[];db.suspendedMatches.push(db.active);db.active=null;undoStack=[];save();showPage('record')}
 function finishMatch(){let a=db.active;if(!a)return;if(!a.hands.length&&!confirm('局の記録がありません。このまま完了しますか？'))return;if(!confirm('この半荘を完了として保存しますか？'))return;completeMatch(a,'手動終了');showPage('history')}
 let expandedHistoryId=null;
 function toggleHistoryDetails(id){expandedHistoryId=expandedHistoryId===id?null:id;renderHistory()}
@@ -1126,13 +1157,13 @@ function statsDetail(data){
 function renderStats(){
  if(!statsApplied)statsApplied=statsReadFilters();
  const select=document.getElementById('statsPlayer'),current=select.value;
- const playerNames=[...new Set([...db.players,...statsValidRecords().flatMap(m=>m.names)])].filter(Boolean).sort((a,b)=>a.localeCompare(b,'ja'));
+ const playerNames=[...new Set(db.players)].filter(Boolean).sort((a,b)=>a.localeCompare(b,'ja'));
  select.innerHTML='<option value="">全員</option>'+playerNames.map(name=>`<option value="${esc(name)}">${esc(name)}</option>`).join('');
  select.value=playerNames.includes(current)?current:'';
  const selected=statsApplied.player,mode=statsApplied.mode;
  const nInput=Number(statsApplied.n),n=Number.isSafeInteger(nInput)&&nInput>0?Math.min(nInput,100000):30;
  const all=statsFilteredMatches(),globalMatches=mode==='global'?all.slice(-n):all;
- const names=selected?[selected]:[...new Set(globalMatches.flatMap(m=>m.names))];
+ const names=selected?[selected]:[...new Set(globalMatches.flatMap(m=>m.names))].filter(name=>db.players.includes(name));
  let rows=names.map(name=>statsAggregate(statsFilterForPlayer(globalMatches,name,mode,n),name)).filter(x=>x.count>0);
  const sort=statsApplied.sort;
  rows.sort((a,b)=>sort==='average'?a.avgRank-b.avgRank||b.count-a.count:sort==='matches'?b.count-a.count||b.score-a.score:sort==='name'?a.name.localeCompare(b.name,'ja'):b.score-a.score||a.avgRank-b.avgRank);
@@ -1347,8 +1378,8 @@ function savePlayerRename(i){
 }
 function deletePlayer(i){
  const n=db.players[i];if(typeof n!=='string')return;
- if(!confirm('登録プレイヤー「'+n+'」を一覧から削除しますか？過去の対局記録は残ります。'))return;
- db.players.splice(i,1);editingPlayerIndex=null;clearPlayerError();save();renderPlayers();
+ if(!confirm('登録プレイヤー「'+n+'」を一覧と成績表示の対象から削除しますか？過去の対局記録自体は残ります。'))return;
+ db.players.splice(i,1);if(statsApplied?.player===n)statsApplied={...statsApplied,player:''};editingPlayerIndex=null;clearPlayerError();save();renderPlayers();
 }
 function exportData(){
  try{
@@ -1388,7 +1419,7 @@ function importData(e){
    return {id:v.id,name:v.name,rules:validateRules(v.rules)};
   }):[];
   if(new Set(incomingFormats.map(f=>f.id)).size!==incomingFormats.length||new Set(incomingFormats.map(f=>f.name)).size!==incomingFormats.length)throw Error('フォーマット名またはIDが重複しています。');
-  db={players:x.players,matches:x.matches,active:x.active||null,rules:x.rules?validateRules(x.rules):ruleDefaults(),ruleFormats:incomingFormats,selectedRuleFormat:incomingFormats.some(v=>v.id===x.selectedRuleFormat)?x.selectedRuleFormat:null};
+  db={players:x.players,matches:x.matches,active:x.active||null,suspendedMatches:Array.isArray(x.suspendedMatches)?x.suspendedMatches:[],rules:x.rules?validateRules(x.rules):ruleDefaults(),ruleFormats:incomingFormats,selectedRuleFormat:incomingFormats.some(v=>v.id===x.selectedRuleFormat)?x.selectedRuleFormat:null};
   try{localStorage.setItem(KEY,JSON.stringify(db));localStorage.setItem(RECOVERY_KEY,JSON.stringify(db));storageReadError=null;diagLastSave=new Date().toISOString();diagRecord('バックアップ読込成功',{matches:db.matches.length});}catch(e){db=backup;diagRecord('バックアップ読込失敗',{type:String(e.name||'error')});throw Error('保存できませんでした。ストレージ容量を確認してください。')}
   statsApplied=null;showPage('home');document.getElementById('saveStatus').textContent='● 保存済み';
  }catch(err){alert(err.message||'読み込めないファイルです。')}finally{e.target.value=''}};

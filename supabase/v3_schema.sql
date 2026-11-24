@@ -183,7 +183,7 @@ end;$$;
 -- Atomic, idempotent backup import. No partial batch persists on failure.
 -- Existing identical snapshots are skipped. Changed snapshots always require explicit editing.
 create or replace function public.mahjong_import_matches(p_room_id uuid,p_items jsonb,p_meta jsonb)
-returns jsonb language plpgsql security definer set search_path = '' as $
+returns jsonb language plpgsql security definer set search_path = '' as $$
 declare
  v_item jsonb;
  v_key text;

@@ -159,227 +159,7 @@ begin
   raise exception 'Not room owner';
  end if;
  if p_match_key is null or char_length(p_match_key) not between 1 and 120
-    or p_match_key !~ '^(completed|suspended|active):.+
-   insert into public.mahjong_room_matches(room_id,match_key,payload,version,updated_by)
-   values (p_room_id,p_match_key,p_payload,1,auth.uid())
-   on conflict do nothing returning version into v_version;
-   if v_version is null then raise exception 'Version conflict: match already exists'; end if;
- else
-   if p_expected_version<1 or p_expected_version>=2147483647 then
-    raise exception 'Invalid version'; end if;
-   update public.mahjong_room_matches
-     set payload=p_payload,version=version+1,updated_at=now(),updated_by=auth.uid()
-   where room_id=p_room_id and match_key=p_match_key and version=p_expected_version
-   returning version into v_version;
-   if v_version is null then raise exception 'Version conflict: refresh first'; end if;
- end if;
- insert into public.mahjong_room_match_history(room_id,match_key,old_version,new_version,payload,changed_by)
- values (p_room_id,p_match_key,p_expected_version,v_version,p_payload,auth.uid());
- return v_version;
-end;$$;
-
--- Atomic, idempotent backup import. No partial batch persists on failure.
--- Existing identical snapshots are skipped. Changed snapshots always require explicit editing.
-create or replace function public.mahjong_import_matches(p_room_id uuid,p_items jsonb,p_meta jsonb)
-returns jsonb language plpgsql security definer set search_path = '' as $$
-declare
- v_item jsonb;
- v_key text;
- v_payload jsonb;
- v_seen text[] := array[]::text[];
- v_existing jsonb;
- v_added integer := 0;
- v_skipped integer := 0;
- v_saved_meta jsonb;
- v_meta_created boolean := false;
-begin
- if auth.uid() is null or not public.mahjong_is_owner(p_room_id) then
-  raise exception 'Not room owner';
- end if;
- if p_items is null or jsonb_typeof(p_items) <> 'array'
-    or jsonb_array_length(p_items) > 500 then
-  raise exception 'Invalid batch (maximum 500 records)';
- end if;
- -- Prevent concurrent imports for the same room. Other writes remain safe via PK conflicts.
- perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_room_id::text, 0));
-
- -- Reject metadata conflicts before any write: do not lose identities or rules.
- if p_meta is null or jsonb_typeof(p_meta)<>'object'
-   or octet_length(p_meta::text)>2000000
-   or jsonb_typeof(p_meta->'players')<>'array'
-   or jsonb_typeof(p_meta->'playerRegistry')<>'array'
-   or (p_meta ? 'matches') or (p_meta ? 'active') or (p_meta ? 'suspendedMatches')
- then raise exception 'Invalid full-backup metadata'; end if;
- select payload into v_saved_meta from public.mahjong_room_backup_meta
-   where room_id=p_room_id for update;
- if found and v_saved_meta<>p_meta then
-   raise exception 'Backup settings conflict: metadata differs, no records imported';
- end if;
-
- -- Validate the entire batch and all existing snapshots before starting inserts.
- for v_item in select value from jsonb_array_elements(p_items) loop
-  if jsonb_typeof(v_item) <> 'object' then raise exception 'Invalid item'; end if;
-  v_key := v_item->>'key';
-  v_payload := v_item->'payload';
-  if v_key is null or char_length(v_key) not between 1 and 120
-   or v_key !~ '^(completed|suspended|active):'
-   or v_payload is null or jsonb_typeof(v_payload) <> 'object'
-   or v_payload->>'kind' not in ('completed','suspended','active')
-   or (v_key like 'completed:%' and v_payload->>'kind'<>'completed')
-   or (v_key like 'suspended:%' and v_payload->>'kind'<>'suspended')
-   or (v_key like 'active:%' and v_payload->>'kind'<>'active')
-   or jsonb_typeof(v_payload->'match') <> 'object'
-   or octet_length(v_payload::text) > 500000
-  then raise exception 'Invalid batch item'; end if;
-  if v_key = any(v_seen) then raise exception 'Duplicate key in batch: %', v_key; end if;
-  -- The original ID must be unique even if a record changes state.
-  if exists (
-    select 1 from unnest(v_seen) as previous_key
-    where substring(previous_key from position(':' in previous_key)+1)
-        = substring(v_key from position(':' in v_key)+1)
-  ) then raise exception 'Duplicate original match ID across states: %', v_key; end if;
-  -- Also prevent a second state of an existing original match ID.
-  if exists (
-    select 1 from public.mahjong_room_matches m
-    where m.room_id=p_room_id
-      and substring(m.match_key from position(':' in m.match_key)+1)
-       = substring(v_key from position(':' in v_key)+1)
-      and m.match_key<>v_key
-  ) then raise exception 'Original match ID already exists in another state: %', v_key; end if;
-  v_seen := array_append(v_seen,v_key);
-  select payload into v_existing from public.mahjong_room_matches
-    where room_id = p_room_id and match_key = v_key for update;
-  if found and v_existing <> v_payload then
-    raise exception 'Conflict for existing match: %', v_key;
-  end if;
- end loop;
-
- -- All inserts are transactional, including history. Race-induced conflicts fail closed.
- for v_item in select value from jsonb_array_elements(p_items) loop
-  v_key := v_item->>'key'; v_payload := v_item->'payload';
-  if exists(select 1 from public.mahjong_room_matches
-     where room_id=p_room_id and match_key=v_key) then
-    v_skipped := v_skipped + 1;
-  else
-    insert into public.mahjong_room_matches(room_id,match_key,payload,version,updated_by)
-      values(p_room_id,v_key,v_payload,1,auth.uid());
-    insert into public.mahjong_room_match_history
-      (room_id,match_key,old_version,new_version,payload,changed_by)
-      values(p_room_id,v_key,null,1,v_payload,auth.uid());
-    v_added := v_added + 1;
-  end if;
- end loop;
- if v_saved_meta is null then
-   insert into public.mahjong_room_backup_meta(room_id,payload,version,updated_by)
-   values(p_room_id,p_meta,1,auth.uid());
-   v_meta_created := true;
- end if;
- return jsonb_build_object('added',v_added,'skipped',v_skipped,'metadata_created',v_meta_created);
-end;$$;
-
--- Move one match between lifecycle states without changing its original ID.
--- Requires exact current version, room ownership, and a deliberate supported transition.
-create or replace function public.mahjong_transition_match(
- p_room_id uuid, p_old_key text, p_new_key text, p_payload jsonb, p_expected_version integer
-) returns integer language plpgsql security definer set search_path = '' as $$
-declare
- v_old public.mahjong_room_matches%rowtype;
- v_new_version integer;
- v_old_kind text;
- v_new_kind text;
- v_original_id text;
-begin
- if auth.uid() is null or not public.mahjong_is_owner(p_room_id) then
-  raise exception 'Not room owner';
- end if;
- if p_old_key is null or p_new_key is null
-    or char_length(p_old_key) not between 1 and 120
-    or char_length(p_new_key) not between 1 and 120
-    or p_old_key !~ '^(active|suspended):.+
- public.mahjong_create_invite(uuid),public.mahjong_accept_invite(text),
- public.mahjong_save_match(uuid,text,jsonb,integer),
- public.mahjong_import_matches(uuid,jsonb,jsonb),
- public.mahjong_transition_match(uuid,text,text,jsonb,integer) from public,anon;
-grant execute on function public.mahjong_create_room(text),
- public.mahjong_create_invite(uuid),public.mahjong_accept_invite(text),
- public.mahjong_save_match(uuid,text,jsonb,integer),
- public.mahjong_import_matches(uuid,jsonb,jsonb),
- public.mahjong_transition_match(uuid,text,text,jsonb,integer) to authenticated;
-
--- For Supabase Realtime, add mahjong_room_matches to supabase_realtime publication
--- manually after RLS checks and the application's membership logic are tested.
-
-commit;
-
-    or p_new_key !~ '^(active|suspended|completed):.+
- public.mahjong_create_invite(uuid),public.mahjong_accept_invite(text),
- public.mahjong_save_match(uuid,text,jsonb,integer),
- public.mahjong_import_matches(uuid,jsonb,jsonb),
- public.mahjong_transition_match(uuid,text,text,jsonb,integer) from public,anon;
-grant execute on function public.mahjong_create_room(text),
- public.mahjong_create_invite(uuid),public.mahjong_accept_invite(text),
- public.mahjong_save_match(uuid,text,jsonb,integer),
- public.mahjong_import_matches(uuid,jsonb,jsonb),
- public.mahjong_transition_match(uuid,text,text,jsonb,integer) to authenticated;
-
--- For Supabase Realtime, add mahjong_room_matches to supabase_realtime publication
--- manually after RLS checks and the application's membership logic are tested.
-
-commit;
-
-    or p_old_key=p_new_key
-    or p_expected_version is null or p_expected_version<1 or p_expected_version>=2147483647
-    or p_payload is null or jsonb_typeof(p_payload)<>'object'
-    or octet_length(p_payload::text)>500000
- then raise exception 'Invalid transition request'; end if;
- v_old_kind:=split_part(p_old_key,':',1);
- v_new_kind:=split_part(p_new_key,':',1);
- v_original_id:=substring(p_old_key from position(':' in p_old_key)+1);
- if substring(p_new_key from position(':' in p_new_key)+1)<>v_original_id
-    or (v_old_kind='active' and v_new_kind not in ('suspended','completed'))
-    or (v_old_kind='suspended' and v_new_kind not in ('active','completed'))
-    or p_payload->>'kind'<>v_new_kind
-    or jsonb_typeof(p_payload->'match')<>'object'
-    or p_payload->'match'->>'id'<>v_original_id
- then raise exception 'Unsupported state transition or mismatched match ID'; end if;
-
- perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_room_id::text,0));
- select * into v_old from public.mahjong_room_matches
-   where room_id=p_room_id and match_key=p_old_key for update;
- if not found or v_old.version<>p_expected_version then
-  raise exception 'Version conflict: refresh before transition'; end if;
- if exists(select 1 from public.mahjong_room_matches
-   where room_id=p_room_id and match_key<>p_old_key
-    and substring(match_key from position(':' in match_key)+1)=v_original_id)
- then raise exception 'Target or original match ID already exists'; end if;
-
- -- Both delete and insert are covered by the same transaction; history preserves the new revision.
- v_new_version:=v_old.version+1;
- delete from public.mahjong_room_matches where room_id=p_room_id and match_key=p_old_key;
- insert into public.mahjong_room_matches(room_id,match_key,payload,version,updated_by)
- values(p_room_id,p_new_key,p_payload,v_new_version,auth.uid());
- insert into public.mahjong_room_match_history
- (room_id,match_key,old_version,new_version,payload,changed_by)
- values(p_room_id,p_new_key,v_old.version,v_new_version,p_payload,auth.uid());
- return v_new_version;
-end;$$;
-
-revoke all on function public.mahjong_create_room(text),
- public.mahjong_create_invite(uuid),public.mahjong_accept_invite(text),
- public.mahjong_save_match(uuid,text,jsonb,integer),
- public.mahjong_import_matches(uuid,jsonb,jsonb),
- public.mahjong_transition_match(uuid,text,text,jsonb,integer) from public,anon;
-grant execute on function public.mahjong_create_room(text),
- public.mahjong_create_invite(uuid),public.mahjong_accept_invite(text),
- public.mahjong_save_match(uuid,text,jsonb,integer),
- public.mahjong_import_matches(uuid,jsonb,jsonb),
- public.mahjong_transition_match(uuid,text,text,jsonb,integer) to authenticated;
-
--- For Supabase Realtime, add mahjong_room_matches to supabase_realtime publication
--- manually after RLS checks and the application's membership logic are tested.
-
-commit;
-
+    or p_match_key !~ '^(completed|suspended|active):.+$'
     or p_payload is null or jsonb_typeof(p_payload)<>'object'
     or p_payload->>'kind'<>split_part(p_match_key,':',1)
     or jsonb_typeof(p_payload->'match')<>'object'
@@ -509,91 +289,57 @@ begin
  return jsonb_build_object('added',v_added,'skipped',v_skipped,'metadata_created',v_meta_created);
 end;$$;
 
--- Move one match between lifecycle states without changing its original ID.
--- Requires exact current version, room ownership, and a deliberate supported transition.
+-- Atomic lifecycle transition with version check and preserved original match ID.
 create or replace function public.mahjong_transition_match(
  p_room_id uuid, p_old_key text, p_new_key text, p_payload jsonb, p_expected_version integer
-) returns integer language plpgsql security definer set search_path = '' as $$
+) returns integer language plpgsql security definer set search_path = '' as $$ 
 declare
  v_old public.mahjong_room_matches%rowtype;
- v_new_version integer;
+ v_version integer;
  v_old_kind text;
  v_new_kind text;
- v_original_id text;
+ v_id text;
 begin
  if auth.uid() is null or not public.mahjong_is_owner(p_room_id) then
   raise exception 'Not room owner';
  end if;
  if p_old_key is null or p_new_key is null
-    or char_length(p_old_key) not between 1 and 120
-    or char_length(p_new_key) not between 1 and 120
-    or p_old_key !~ '^(active|suspended):.+
- public.mahjong_create_invite(uuid),public.mahjong_accept_invite(text),
- public.mahjong_save_match(uuid,text,jsonb,integer),
- public.mahjong_import_matches(uuid,jsonb,jsonb),
- public.mahjong_transition_match(uuid,text,text,jsonb,integer) from public,anon;
-grant execute on function public.mahjong_create_room(text),
- public.mahjong_create_invite(uuid),public.mahjong_accept_invite(text),
- public.mahjong_save_match(uuid,text,jsonb,integer),
- public.mahjong_import_matches(uuid,jsonb,jsonb),
- public.mahjong_transition_match(uuid,text,text,jsonb,integer) to authenticated;
-
--- For Supabase Realtime, add mahjong_room_matches to supabase_realtime publication
--- manually after RLS checks and the application's membership logic are tested.
-
-commit;
-
-    or p_new_key !~ '^(active|suspended|completed):.+
- public.mahjong_create_invite(uuid),public.mahjong_accept_invite(text),
- public.mahjong_save_match(uuid,text,jsonb,integer),
- public.mahjong_import_matches(uuid,jsonb,jsonb),
- public.mahjong_transition_match(uuid,text,text,jsonb,integer) from public,anon;
-grant execute on function public.mahjong_create_room(text),
- public.mahjong_create_invite(uuid),public.mahjong_accept_invite(text),
- public.mahjong_save_match(uuid,text,jsonb,integer),
- public.mahjong_import_matches(uuid,jsonb,jsonb),
- public.mahjong_transition_match(uuid,text,text,jsonb,integer) to authenticated;
-
--- For Supabase Realtime, add mahjong_room_matches to supabase_realtime publication
--- manually after RLS checks and the application's membership logic are tested.
-
-commit;
-
-    or p_old_key=p_new_key
-    or p_expected_version is null or p_expected_version<1 or p_expected_version>=2147483647
-    or p_payload is null or jsonb_typeof(p_payload)<>'object'
-    or octet_length(p_payload::text)>500000
+   or char_length(p_old_key) not between 1 and 120
+   or char_length(p_new_key) not between 1 and 120
+   or p_old_key !~ '^(active|suspended):.+$'
+   or p_new_key !~ '^(active|suspended|completed):.+$'
+   or p_old_key=p_new_key
+   or p_expected_version is null or p_expected_version<1 or p_expected_version>=2147483647
+   or p_payload is null or jsonb_typeof(p_payload)<>'object'
+   or octet_length(p_payload::text)>500000
  then raise exception 'Invalid transition request'; end if;
  v_old_kind:=split_part(p_old_key,':',1);
  v_new_kind:=split_part(p_new_key,':',1);
- v_original_id:=substring(p_old_key from position(':' in p_old_key)+1);
- if substring(p_new_key from position(':' in p_new_key)+1)<>v_original_id
-    or (v_old_kind='active' and v_new_kind not in ('suspended','completed'))
-    or (v_old_kind='suspended' and v_new_kind not in ('active','completed'))
-    or p_payload->>'kind'<>v_new_kind
-    or jsonb_typeof(p_payload->'match')<>'object'
-    or p_payload->'match'->>'id'<>v_original_id
- then raise exception 'Unsupported state transition or mismatched match ID'; end if;
-
+ v_id:=substring(p_old_key from position(':' in p_old_key)+1);
+ if substring(p_new_key from position(':' in p_new_key)+1)<>v_id
+   or (v_old_kind='active' and v_new_kind not in ('suspended','completed'))
+   or (v_old_kind='suspended' and v_new_kind not in ('active','completed'))
+   or p_payload->>'kind'<>v_new_kind
+   or jsonb_typeof(p_payload->'match')<>'object'
+   or p_payload->'match'->>'id'<>v_id
+ then raise exception 'Unsupported transition or mismatched match ID'; end if;
  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_room_id::text,0));
  select * into v_old from public.mahjong_room_matches
-   where room_id=p_room_id and match_key=p_old_key for update;
+  where room_id=p_room_id and match_key=p_old_key for update;
  if not found or v_old.version<>p_expected_version then
   raise exception 'Version conflict: refresh before transition'; end if;
  if exists(select 1 from public.mahjong_room_matches
-   where room_id=p_room_id and match_key<>p_old_key
-    and substring(match_key from position(':' in match_key)+1)=v_original_id)
+  where room_id=p_room_id and match_key<>p_old_key
+   and substring(match_key from position(':' in match_key)+1)=v_id)
  then raise exception 'Target or original match ID already exists'; end if;
-
- -- Both delete and insert are covered by the same transaction; history preserves the new revision.
- v_new_version:=v_old.version+1;
+ v_version:=v_old.version+1;
  delete from public.mahjong_room_matches where room_id=p_room_id and match_key=p_old_key;
  insert into public.mahjong_room_matches(room_id,match_key,payload,version,updated_by)
- values(p_room_id,p_new_key,p_payload,v_new_version,auth.uid());
+ values(p_room_id,p_new_key,p_payload,v_version,auth.uid());
  insert into public.mahjong_room_match_history
- (room_id,match_key,old_version,new_version,payload,changed_by)
- values(p_room_id,p_new_key,v_old.version,v_new_version,p_payload,auth.uid());
- return v_new_version;
+  (room_id,match_key,old_version,new_version,payload,changed_by)
+ values(p_room_id,p_new_key,v_old.version,v_version,p_payload,auth.uid());
+ return v_version;
 end;$$;
 
 revoke all on function public.mahjong_create_room(text),

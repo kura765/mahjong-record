@@ -25,6 +25,13 @@ create table if not exists public.mahjong_room_matches (
   updated_by uuid references auth.users(id) on delete set null,
   primary key (room_id,match_key)
 );
+create table if not exists public.mahjong_room_backup_meta (
+ room_id uuid primary key references public.mahjong_rooms(id) on delete cascade,
+ payload jsonb not null check (jsonb_typeof(payload)='object'),
+ version integer not null default 1 check (version>=1),
+ updated_at timestamptz not null default now(),
+ updated_by uuid references auth.users(id) on delete set null
+);
 create table if not exists public.mahjong_room_match_history (
   id bigint generated always as identity primary key,
   room_id uuid not null references public.mahjong_rooms(id) on delete cascade,
@@ -53,15 +60,16 @@ create index if not exists mahjong_history_match_idx on public.mahjong_room_matc
 alter table public.mahjong_rooms enable row level security;
 alter table public.mahjong_room_members enable row level security;
 alter table public.mahjong_room_matches enable row level security;
+alter table public.mahjong_room_backup_meta enable row level security;
 alter table public.mahjong_room_match_history enable row level security;
 alter table public.mahjong_room_invites enable row level security;
 
 -- Deny all direct table mutations. All writes use audited security-definer RPCs.
 revoke all on public.mahjong_rooms, public.mahjong_room_members,
- public.mahjong_room_matches, public.mahjong_room_match_history,
+ public.mahjong_room_matches, public.mahjong_room_backup_meta, public.mahjong_room_match_history,
  public.mahjong_room_invites from anon, authenticated;
 grant select on public.mahjong_rooms, public.mahjong_room_members,
- public.mahjong_room_matches to authenticated;
+ public.mahjong_room_matches, public.mahjong_room_backup_meta to authenticated;
 revoke all on public.mahjong_room_match_history, public.mahjong_room_invites from authenticated;
 
 create or replace function public.mahjong_is_owner(p_room_id uuid)
@@ -89,6 +97,10 @@ create policy mahjong_member_read on public.mahjong_room_members for select to a
 using (user_id=(select auth.uid()) or public.mahjong_is_owner(room_id));
 drop policy if exists mahjong_match_read on public.mahjong_room_matches;
 create policy mahjong_match_read on public.mahjong_room_matches for select to authenticated
+using (public.mahjong_can_view(room_id));
+
+drop policy if exists mahjong_backup_meta_read on public.mahjong_room_backup_meta;
+create policy mahjong_backup_meta_read on public.mahjong_room_backup_meta for select to authenticated
 using (public.mahjong_can_view(room_id));
 
 create or replace function public.mahjong_create_room(p_title text)
@@ -170,7 +182,7 @@ end;$$;
 
 -- Atomic, idempotent backup import. No partial batch persists on failure.
 -- Existing identical snapshots are skipped. Changed snapshots always require explicit editing.
-create or replace function public.mahjong_import_matches(p_room_id uuid,p_items jsonb)
+create or replace function public.mahjong_import_matches(p_room_id uuid,p_items jsonb,p_meta jsonb)
 returns jsonb language plpgsql security definer set search_path = '' as $
 declare
  v_item jsonb;
@@ -180,6 +192,8 @@ declare
  v_existing jsonb;
  v_added integer := 0;
  v_skipped integer := 0;
+ v_saved_meta jsonb;
+ v_meta_created boolean := false;
 begin
  if auth.uid() is null or not public.mahjong_is_owner(p_room_id) then
   raise exception 'Not room owner';
@@ -190,6 +204,19 @@ begin
  end if;
  -- Prevent concurrent imports for the same room. Other writes remain safe via PK conflicts.
  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_room_id::text, 0));
+
+ -- Reject metadata conflicts before any write: do not lose identities or rules.
+ if p_meta is null or jsonb_typeof(p_meta)<>'object'
+   or octet_length(p_meta::text)>2000000
+   or jsonb_typeof(p_meta->'players')<>'array'
+   or jsonb_typeof(p_meta->'playerRegistry')<>'array'
+   or (p_meta ? 'matches') or (p_meta ? 'active') or (p_meta ? 'suspendedMatches')
+ then raise exception 'Invalid full-backup metadata'; end if;
+ select payload into v_saved_meta from public.mahjong_room_backup_meta
+   where room_id=p_room_id for update;
+ if found and v_saved_meta<>p_meta then
+   raise exception 'Backup settings conflict: metadata differs, no records imported';
+ end if;
 
  -- Validate the entire batch and all existing snapshots before starting inserts.
  for v_item in select value from jsonb_array_elements(p_items) loop
@@ -230,17 +257,22 @@ begin
     v_added := v_added + 1;
   end if;
  end loop;
- return jsonb_build_object('added',v_added,'skipped',v_skipped);
+ if v_saved_meta is null then
+   insert into public.mahjong_room_backup_meta(room_id,payload,version,updated_by)
+   values(p_room_id,p_meta,1,auth.uid());
+   v_meta_created := true;
+ end if;
+ return jsonb_build_object('added',v_added,'skipped',v_skipped,'metadata_created',v_meta_created);
 end;$;
 
 revoke all on function public.mahjong_create_room(text),
  public.mahjong_create_invite(uuid),public.mahjong_accept_invite(text),
  public.mahjong_save_match(uuid,text,jsonb,integer),
- public.mahjong_import_matches(uuid,jsonb) from public,anon;
+ public.mahjong_import_matches(uuid,jsonb,jsonb) from public,anon;
 grant execute on function public.mahjong_create_room(text),
  public.mahjong_create_invite(uuid),public.mahjong_accept_invite(text),
  public.mahjong_save_match(uuid,text,jsonb,integer),
- public.mahjong_import_matches(uuid,jsonb) to authenticated;
+ public.mahjong_import_matches(uuid,jsonb,jsonb) to authenticated;
 
 -- For Supabase Realtime, add mahjong_room_matches to supabase_realtime publication
 -- manually after RLS checks and the application's membership logic are tested.

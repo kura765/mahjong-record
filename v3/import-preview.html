@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="mahjong-build" content="20261125-v30-import-preview-1">
+<title>麻雀対局記録サイト | v3.0 安全な取り込み</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif;color:#182436;background:#f6f7fa}
+*{box-sizing:border-box}body{margin:0}main{max-width:790px;margin:0 auto;padding:18px 14px 70px}
+h1{font-size:24px;margin:20px 0 8px}h2{font-size:18px;margin:0 0 13px}p,li{line-height:1.7}
+.card{background:white;border:1px solid #dfe5ed;border-radius:16px;padding:18px;margin:14px 0}
+input[type=file]{padding:12px;border:1px dashed #a5b4c7;border-radius:10px;width:100%}
+label{display:block;font-weight:700;margin-bottom:8px}.small{font-size:13px;color:#64748b}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+button,.link{font:inherit;font-weight:700;display:inline-block;text-align:center;border:0;background:#2563eb;color:white;border-radius:10px;padding:13px 18px;cursor:pointer;text-decoration:none}
+button:disabled{background:#aeb7c5;cursor:not-allowed}
+.secondary{background:#e8f0ff;color:#1d4ed8}
+.ok{color:#13703b}.bad{color:#b42318}.warn{color:#975900}
+#result[hidden]{display:none}ul{padding-left:22px}li{overflow-wrap:anywhere}
+@media(max-width:550px){.grid{grid-template-columns:1fr}}
+</style></head><body><main>
+<a href="migration-check.html">← 移行前チェックに戻る</a>
+<h1>v3.0 バックアップ統合プレビュー</h1>
+<p>別の端末や過去のバックアップにある半荘を、現在のバックアップへ安全に取り込むための実験機能です。<strong>2つのJSONを比較し、問題がなければ統合したJSONを作ります。</strong>元のファイル、ブラウザ保存データ、クラウドには書き込みません。</p>
+<section class="card"><h2>1. 2つのバックアップを指定</h2>
+<div class="grid"><div><label for="base">基準データ（残したい最新の記録）</label><input id="base" type="file" accept=".json,application/json"></div>
+<div><label for="incoming">追加するデータ（別端末・過去の記録）</label><input id="incoming" type="file" accept=".json,application/json"></div></div>
+<p id="fileStatus" class="small" aria-live="polite">両方のファイルを選択してください。</p>
+<button id="compare" disabled>重複を検査して統合をプレビュー</button></section>
+<section id="result" class="card" hidden>
+<h2>2. 比較結果</h2><p id="verdict" role="status"></p><ul id="counts"></ul>
+<details open><summary>注意点・エラー</summary><ul id="messages"></ul></details>
+<p class="small">保存ボタンで取得するのは新しいJSONファイルです。v2.22 で使う場合は元のJSONを別途保管し、設定のバックアップ読み込みで明示的に選択してください。読み込み時は現在の記録が置き換わります。</p>
+<button id="download" disabled>統合バックアップを保存</button></section>
+<section class="card"><h2>統合時の規則</h2>
+<ul>
+<li>同じ半荘IDで内容も一致する記録は一度だけ残します。</li>
+<li>同じ半荘IDで内容が違う場合は統合を中止します。</li>
+<li>異なるIDでも全内容が同じ半荘は重複候補として検出し、安全のため統合を中止します。</li>
+<li>登録済みプレイヤーは固有IDで照合します。同名でも別IDなら勝手に結合しません。</li>
+<li>異なるルール設定・統計除外設定を勝手に混ぜません。</li>
+<li>両方に進行中の半荘がある場合は、どちらかを失わないよう統合を中止します。</li>
+</ul><p class="small">この機能はローカルJSON統合までです。Supabaseへの同期・招待リンク・複数人編集はまだ実装していません。</p></section>
+</main><script>
+"use strict";
+const $=id=>document.getElementById(id);
+let merged=null;
+const MAX_FILE_BYTES=25*1024*1024;
+function stable(value){
+ if(Array.isArray(value))return "["+value.map(v=>v===undefined?"null":stable(v)).join(",")+"]";
+ if(value===null||typeof value!=="object")return JSON.stringify(value);
+ return "{"+Object.keys(value).filter(k=>value[k]!==undefined).sort().map(k=>JSON.stringify(k)+":"+stable(value[k])).join(",")+"}";
+}
+const clone=x=>JSON.parse(JSON.stringify(x));
+const issue=(messages,type,message)=>messages.push({type,message});
+function parseAndValidate(x,label){
+ const errors=[];
+ if(!x||typeof x!=="object"||Array.isArray(x))throw Error(label+"：JSONの最上位はオブジェクトである必要があります。");
+ if(!Array.isArray(x.players)||!x.players.every(v=>typeof v==="string"))throw Error(label+"：players が不正です。");
+ if(!Array.isArray(x.matches)||!x.matches.every(m=>m&&Array.isArray(m.names)&&m.names.length===4&&m.names.every(v=>typeof v==="string")&&Array.isArray(m.points)&&m.points.length===4&&m.points.every(Number.isSafeInteger)&&Array.isArray(m.hands)))throw Error(label+"：完了半荘の形式が不正です。");
+ if(x.suspendedMatches!==undefined&&!Array.isArray(x.suspendedMatches))throw Error(label+"：中断半荘の形式が不正です。");
+ if(x.active!==undefined&&x.active!==null&&(typeof x.active!=="object"||Array.isArray(x.active)))throw Error(label+"：進行中の半荘が不正です。");
+ const lists=[x.matches,x.suspendedMatches||[],x.active?[x.active]:[]], ids=new Set();
+ for(const m of lists.flat()){
+  if(!m||!(typeof m.id==="string"||Number.isSafeInteger(m.id))||!String(m.id).trim()||!Array.isArray(m.names)||m.names.length!==4||!m.names.every(v=>typeof v==="string")||!Array.isArray(m.points)||m.points.length!==4||!m.points.every(Number.isSafeInteger)||!Array.isArray(m.hands))throw Error(label+"：半荘の必須項目が不正です。");
+  if(ids.has(String(m.id)))throw Error(label+"：ファイル内に重複した半荘IDがあります ("+m.id+")。");
+  ids.add(String(m.id));
+ }
+ if(!Array.isArray(x.playerRegistry))throw Error(label+"：プレイヤー固有IDがありません。v2.22でバックアップを作り直してください。");
+ const playerIds=new Set();
+ for(const p of x.playerRegistry){
+  if(!p||typeof p.id!=="string"||!p.id||typeof p.name!=="string"||typeof p.deleted!=="boolean"||playerIds.has(p.id))throw Error(label+"：プレイヤー登録表が不正、またはIDが重複しています。");
+  playerIds.add(p.id);
+ }
+ for(const m of lists.flat())if(!Array.isArray(m.playerIds)||m.playerIds.length!==4||new Set(m.playerIds).size!==4||!m.playerIds.every(id=>playerIds.has(id)))throw Error(label+"：半荘のプレイヤーID参照が不正です ("+m.id+")。");
+ if(x.ruleFormats!==undefined&&!Array.isArray(x.ruleFormats))throw Error(label+"：ルールフォーマットが不正です。");
+ const formatIDs=new Set(),formatNames=new Set();
+ for(const f of x.ruleFormats||[]){
+  if(!f||typeof f.id!=="string"||!f.id||typeof f.name!=="string"||!f.name.trim()||!f.rules||formatIDs.has(f.id)||formatNames.has(f.name))throw Error(label+"：ルールフォーマットの不正または重複があります。");
+  formatIDs.add(f.id);formatNames.add(f.name);
+ }
+ if(x.selectedRuleFormat&&!formatIDs.has(x.selectedRuleFormat))throw Error(label+"：選択中のルールフォーマットが見つかりません。");
+ return x;
+}
+function combine(base,incoming){
+ parseAndValidate(base,"基準データ");parseAndValidate(incoming,"追加データ");
+ const messages=[],counts={base:base.matches.length,added:0,skipped:0,suspendedAdded:0,playerAdded:0,formatAdded:0};
+ const out=clone(base);
+ out.suspendedMatches=Array.isArray(out.suspendedMatches)?out.suspendedMatches:[];
+ out.ruleFormats=Array.isArray(out.ruleFormats)?out.ruleFormats:[];
+ out.excludedStatsMatches=out.excludedStatsMatches&&typeof out.excludedStatsMatches==="object"&&!Array.isArray(out.excludedStatsMatches)?out.excludedStatsMatches:{};
+ const reg=new Map(out.playerRegistry.map(p=>[p.id,p]));
+ for(const p of incoming.playerRegistry){
+  const old=reg.get(p.id);
+  if(old){
+   if(stable(old)!==stable(p))issue(messages,"error","同じプレイヤーIDですが登録内容が異なります: "+p.id);
+  }else{out.playerRegistry.push(clone(p));reg.set(p.id,p);counts.playerAdded++;}
+ }
+ const formatsByID=new Map(out.ruleFormats.map(f=>[f.id,f]));
+ const formatsByName=new Map(out.ruleFormats.map(f=>[f.name,f]));
+ for(const f of incoming.ruleFormats||[]){
+  const sameID=formatsByID.get(f.id),sameName=formatsByName.get(f.name);
+  if(sameID||sameName){
+   if(!sameID||!sameName||sameID.id!==sameName.id||stable(sameID)!==stable(f))issue(messages,"error","同じIDまたは名称のルールフォーマットが異なります: "+f.name);
+  }else{out.ruleFormats.push(clone(f));formatsByID.set(f.id,f);formatsByName.set(f.name,f);counts.formatAdded++;}
+ }
+ if(stable(base.rules??null)!==stable(incoming.rules??null))issue(messages,"error","現在のルール設定が異なります。誤ったルールで集計しないよう統合を停止します。");
+ if((base.selectedRuleFormat||null)!==(incoming.selectedRuleFormat||null))issue(messages,"error","現在選択中のルールフォーマットが異なります。");
+ const exclusionsA=base.excludedStatsMatches||{},exclusionsB=incoming.excludedStatsMatches||{};
+ for(const [name,ids] of Object.entries(exclusionsB)){
+  if(!Array.isArray(ids))issue(messages,"error","追加データの統計除外設定が不正です: "+name);
+  else out.excludedStatsMatches[name]=Array.from(new Set([...(Array.isArray(out.excludedStatsMatches[name])?out.excludedStatsMatches[name]:[]),...ids]));
+ }
+ if(!Array.isArray(incoming.suspendedMatches))incoming={...incoming,suspendedMatches:[]};
+ const existing=new Map();
+ for(const [kind,list] of [["完了",out.matches],["中断",out.suspendedMatches],["進行中",out.active?[out.active]:[]]]){
+  for(const m of list)existing.set(String(m.id),{m,kind});
+ }
+ // The content-based comparison excludes only the ID; all other fields must match.
+ const fingerprints=new Map([...existing.values()].map(({m,kind})=>[stable(Object.fromEntries(Object.entries(m).filter(([k])=>k!=="id"))),kind]));
+ const process=(m,kind)=>{
+  const id=String(m.id), old=existing.get(id);
+  if(old){
+   if(old.kind===kind&&stable(old.m)===stable(m)){counts.skipped++;return;}
+   issue(messages,"error","半荘ID「"+id+"」が重複していますが内容や状態が異なります（"+old.kind+" / "+kind+"）。");
+   return;
+  }
+  const fingerprint=stable(Object.fromEntries(Object.entries(m).filter(([k])=>k!=="id")));
+  if(fingerprints.has(fingerprint)){issue(messages,"error","IDは別ですが内容が完全一致する半荘があります: "+id+"（"+kind+"）。");return;}
+  const copy=clone(m);
+  if(kind==="完了"){out.matches.push(copy);counts.added++;}
+  if(kind==="中断"){out.suspendedMatches.push(copy);counts.suspendedAdded++;}
+  if(kind==="進行中"){
+   if(out.active){issue(messages,"error","2つのファイルに進行中の半荘があります。");return;}
+   out.active=copy;
+  }
+  existing.set(id,{m:copy,kind});fingerprints.set(fingerprint,kind);
+ };
+ for(const m of incoming.matches)process(m,"完了");
+ for(const m of incoming.suspendedMatches)process(m,"中断");
+ if(incoming.active)process(incoming.active,"進行中");
+ // Legacy players list is derived from the merged registry to preserve all active identities.
+ out.players=out.playerRegistry.filter(p=>!p.deleted).map(p=>p.name);
+ // Do not silently discard unknown schema fields held only in the incoming backup.
+ for(const key of Object.keys(incoming)){
+  if(!(key in out))issue(messages,"error","追加データ固有の未対応フィールドがあります: "+key);
+ }
+ // The excludedStatsMatches dictionary is name based; any ID conflict still requires explicit repair.
+ return {merged:messages.some(m=>m.type==="error")?null:out,messages,counts};
+}
+function render(result){
+ merged=result.merged;
+ $("result").hidden=false;
+ const errors=result.messages.filter(m=>m.type==="error").length;
+ $("verdict").className=errors?"bad":"ok";
+ $("verdict").textContent=errors?"統合を停止しました（問題 "+errors+" 件）。元データを確認してください。":"統合可能です。元データは変更していません。";
+ const c=result.counts;
+ $("counts").replaceChildren(...[
+ "基準の完了半荘："+c.base+" 件",
+ "新たに追加する完了半荘："+c.added+" 件",
+ "新たに追加する中断半荘："+c.suspendedAdded+" 件",
+ "一致して取り込みを省略："+c.skipped+" 件",
+ "追加プレイヤーID："+c.playerAdded+" 件",
+ "追加ルールフォーマット："+c.formatAdded+" 件"
+ ].map(t=>{const li=document.createElement("li");li.textContent=t;return li;}));
+ $("messages").replaceChildren(...(result.messages.length?result.messages:[{type:"ok",message:"競合は検出されませんでした。"}]).map(m=>{const li=document.createElement("li");li.className=m.type==="error"?"bad":"ok";li.textContent=m.message;return li;}));
+ $("download").disabled=!merged;
+}
+function updateFiles(){
+ $("compare").disabled=!$("base").files?.length||!$("incoming").files?.length;
+ $("fileStatus").textContent=$("compare").disabled?"両方のファイルを選択してください。":"2つのバックアップを選択しました。比較できます。";
+ $("result").hidden=true;merged=null;
+}
+$("base").addEventListener("change",updateFiles);$("incoming").addEventListener("change",updateFiles);
+$("compare").addEventListener("click",async()=>{
+ merged=null;$("result").hidden=true;$("compare").disabled=true;
+ try{
+  const files=[$("base").files[0],$("incoming").files[0]];
+  if(files.some(f=>f.size>MAX_FILE_BYTES))throw Error("25MBを超えるファイルは取り込めません。");
+  const [a,b]=await Promise.all(files.map(f=>f.text()));
+  render(combine(JSON.parse(a),JSON.parse(b)));
+  $("fileStatus").textContent="比較が完了しました。";
+ }catch(e){$("fileStatus").textContent="比較できません: "+String(e.message||e);}
+ finally{$("compare").disabled=false;}
+});
+$("download").addEventListener("click",()=>{
+ if(!merged)return;
+ const blob=new Blob([JSON.stringify(merged,null,2)],{type:"application/json"});
+ const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="mahjong-merged-backup-"+new Date().toISOString().slice(0,10)+".json";
+ document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+});
+</script></body></html>

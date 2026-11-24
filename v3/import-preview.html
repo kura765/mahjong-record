@@ -137,6 +137,14 @@ function combine(base,incoming){
  for(const m of incoming.matches)process(m,"完了");
  for(const m of incoming.suspendedMatches)process(m,"中断");
  if(incoming.active)process(incoming.active,"進行中");
+ // A v2.x players list cannot represent multiple active identities with the same name.
+ // Do not merge those identities; block export until the user resolves the conflict.
+ const activeNames=new Map();
+ for(const p of out.playerRegistry.filter(p=>!p.deleted)){
+  if(activeNames.has(p.name)&&activeNames.get(p.name)!==p.id)
+   issue(messages,"error","同じ表示名の有効なプレイヤーが別IDで存在します: "+p.name+"。名前を整理してから統合してください。");
+  else activeNames.set(p.name,p.id);
+ }
  // Legacy players list is derived from the merged registry to preserve all active identities.
  out.players=out.playerRegistry.filter(p=>!p.deleted).map(p=>p.name);
  // Do not silently discard unknown schema fields held only in the incoming backup.

@@ -1,0 +1,156 @@
+// Run: node --test tests/v3-integrity.test.mjs
+// Pure-function regression tests. No Supabase project or external packages needed.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+import path from 'node:path';
+
+const root=path.resolve(import.meta.dirname,'..');
+const html=readFileSync(path.join(root,'v3/cloud.html'),'utf8');
+const trial=readFileSync(path.join(root,'v3/play.html'),'utf8');
+const production=readFileSync(path.join(root,'index.html'),'utf8');
+const sql=readFileSync(path.join(root,'supabase/v3_schema.sql'),'utf8');
+const script=html.split('<script type="module">')[1]?.split('</script>')[0];
+assert.ok(script,'cloud module missing');
+
+function extract(start,end){
+ const a=script.indexOf(start),b=script.indexOf(end,a+start.length);
+ assert.ok(a>=0&&b>a,`function boundaries missing: ${start}`);
+ return script.slice(a,b);
+}
+const stableCode=extract('function stableJson(', 'function stopAutoSync(');
+const candidateCode=extract('function originalMatchId(', '$("scanUpdates").onclick');
+const pullCode=extract('function comparePullData(', 'function invalidatePull(');
+const validateCode=extract('function checkedBackup(', 'function prepareImport(');
+const restoreCode=extract('function reconstructBackup(', '$("export").onclick');
+const mocks={
+ Blob: class Blob { constructor(items){this.size=Buffer.byteLength(items.join(''));} }
+};
+const evaluated=vm.runInNewContext(
+ stableCode+candidateCode+validateCode+restoreCode+pullCode+
+ '\n({stableJson,buildUpdateCandidates,checkedBackup,reconstructBackup,comparePullData})',
+ mocks,
+ {timeout:1000}
+);
+const {stableJson,buildUpdateCandidates,checkedBackup,reconstructBackup,comparePullData}=evaluated;
+const reg=['a','b','c','d'].map(id=>({id,name:id.toUpperCase(),deleted:false}));
+const freshMatch=(id,round=0)=>({
+ id,names:['A','B','C','D'],playerIds:['a','b','c','d'],
+ points:[25000,25000,25000,25000],hands:Array.from({length:round},(_,i)=>({round:i}))
+});
+const meta={players:['A','B','C','D'],playerRegistry:reg,rules:null,ruleFormats:[],selectedRuleFormat:null,excludedStatsMatches:{}};
+function fixture({completed=[],suspended=[],active=null}={}){
+ return {...structuredClone(meta),matches:completed,suspendedMatches:suspended,active};
+}
+function record(kind,id,round=0){
+ return {key:kind+':'+id,payload:{kind,match:freshMatch(id,round)}};
+}
+function snapshot(item,version=1){
+ return {match_key:item.key,payload:item.payload,version};
+}
+function checkpoint(item,version=1){
+ return {schema:1,roomId:'room1',meta:structuredClone(meta),items:{[item.key]:{version,payload:item.payload}}};
+}
+function checked(items){
+ return {meta:structuredClone(meta),items};
+}
+function rejects(f,regexp){
+ assert.throws(f,e=>regexp.test(String(e.message||e)));
+}
+test('Whole cloud module parses as JavaScript (without its ESM import)',()=>{
+ const body=script.replace(/^import\s+\{[^}]+\}\s+from\s+["'][^"']+["'];\s*/m,'');
+ assert.doesNotThrow(()=>new vm.Script(body));
+});
+test('Trial app parses and uses a separate storage key',()=>{
+ const trialScript=trial.match(/<script>([\s\S]*)<\/script><\/body>/)?.[1];
+ assert.ok(trialScript);
+ assert.doesNotThrow(()=>new vm.Script(trialScript));
+ assert.match(trial,/const KEY='mahjongV3Trial'/);
+ assert.match(production,/const KEY='mahjongPrototypeV1'/);
+ assert.doesNotMatch(trial,/const KEY='mahjongPrototypeV1'/);
+});
+test('Complete backup validates without modifying source',()=>{
+ const data=fixture({completed:[freshMatch('m1')]});
+ const saved=JSON.stringify(data),x=checkedBackup(data);
+ assert.equal(x.items.length,1);
+ assert.equal(x.items[0].key,'completed:m1');
+ assert.deepEqual(JSON.parse(JSON.stringify(x.meta.playerRegistry)),reg);
+ assert.equal(JSON.stringify(data),saved);
+});
+test('Duplicate original ID across states is rejected',()=>{
+ rejects(()=>checkedBackup(fixture({completed:[freshMatch('m1')],suspended:[freshMatch('m1')]})),/重複/);
+});
+test('Missing player reference is rejected',()=>{
+ const m=freshMatch('m1');m.playerIds[0]='missing';
+ rejects(()=>checkedBackup(fixture({completed:[m]})),/不整合/);
+});
+test('Stable comparison ignores object property order',()=>{
+ assert.equal(stableJson({z:2,a:{y:1,x:2}}),stableJson({a:{x:2,y:1},z:2}));
+});
+test('No changes creates no upload candidates',()=>{
+ const x=record('active','m1');
+ assert.equal(buildUpdateCandidates(checked([x]),checkpoint(x),new Map([[x.key,snapshot(x)]]),'room1').length,0);
+});
+test('Local match edit creates versioned update',()=>{
+ const original=record('active','m1'),newer=record('active','m1',1);
+ const candidates=buildUpdateCandidates(checked([newer]),checkpoint(original,3),new Map([[original.key,snapshot(original,3)]]),'room1');
+ assert.equal(candidates[0].kind,'更新'); assert.equal(candidates[0].expected,3);
+});
+test('Local active-to-completed move creates lifecycle transition',()=>{
+ const original=record('active','m1'),finished=record('completed','m1',2);
+ const candidate=buildUpdateCandidates(checked([finished]),checkpoint(original,2),new Map([[original.key,snapshot(original,2)]]),'room1')[0];
+ assert.equal(candidate.kind,'状態変更');assert.equal(candidate.oldKey,original.key);
+});
+test('Completed-to-active rollback is blocked',()=>{
+ const done=record('completed','m1'),active=record('active','m1');
+ rejects(()=>buildUpdateCandidates(checked([active]),checkpoint(done),new Map([[done.key,snapshot(done)]]),'room1'),/未対応/);
+});
+test('Cloud revision conflict blocks an upload',()=>{
+ const original=record('active','m1'),changed=record('active','m1',1);
+ rejects(()=>buildUpdateCandidates(checked([changed]),checkpoint(original),new Map([[original.key,snapshot(original,2)]]),'room1'),/変更/);
+});
+test('Cloud pull accepts a remote-only edit',()=>{
+ const a=record('active','m1'),b=record('active','m1',1);
+ const result=comparePullData(checked([a]),checkpoint(a),meta,[snapshot(b,2)]);
+ assert.equal(result.pulled,1);assert.equal(result.merged.active.hands.length,1);
+});
+test('Cloud pull preserves a local-only edit',()=>{
+ const a=record('active','m1'),local=record('active','m1',2);
+ const result=comparePullData(checked([local]),checkpoint(a),meta,[snapshot(a)]);
+ assert.equal(result.pulled,0);assert.equal(result.preserved,1);
+ assert.equal(result.merged.active.hands.length,2);
+});
+test('Cloud pull adds an unrelated remote match',()=>{
+ const a=record('active','m1'),b=record('completed','m2');
+ const result=comparePullData(checked([a]),checkpoint(a),meta,[snapshot(a),snapshot(b)]);
+ assert.equal(result.pulled,1);assert.equal(result.merged.matches.length,1);
+});
+test('Cloud pull accepts remote active-to-completed transition',()=>{
+ const a=record('active','m1'),b=record('completed','m1',1);
+ const result=comparePullData(checked([a]),checkpoint(a),meta,[snapshot(b,2)]);
+ assert.equal(result.merged.active,null);assert.equal(result.merged.matches.length,1);
+});
+test('Cloud pull refuses concurrent local and remote edits',()=>{
+ const a=record('active','m1'),b=record('active','m1',1),c=record('active','m1',2);
+ rejects(()=>comparePullData(checked([b]),checkpoint(a),meta,[snapshot(c,2)]),/両方/);
+});
+test('Cloud pull refuses conflicting metadata',()=>{
+ const a=record('active','m1');
+ rejects(()=>comparePullData(checked([a]),checkpoint(a),{...meta,players:['wrong']},[snapshot(a)]),/設定/);
+});
+test('Reconstruction refuses duplicate IDs across states',()=>{
+ const a=record('active','m1'),b=record('completed','m1');
+ rejects(()=>reconstructBackup(meta,[snapshot(a),snapshot(b)]),/同一/);
+});
+test('SQL integrity: single transaction, balanced functions, RLS and versioning',()=>{
+ const functions=(sql.match(/^create or replace function/gm)||[]).length;
+ const delimiters=(sql.match(/\$\$/g)||[]).length;
+ assert.equal(delimiters,functions*2);
+ assert.equal((sql.match(/^commit;$/gm)||[]).length,1);
+ for(const table of ['mahjong_rooms','mahjong_room_members','mahjong_room_matches','mahjong_room_backup_meta','mahjong_room_match_history','mahjong_room_invites'])
+  assert.ok(sql.includes('alter table public.'+table+' enable row level security;'));
+ assert.match(sql,/mahjong_transition_match/);
+ assert.match(sql,/Version conflict/);
+ assert.match(sql,/pg_advisory_xact_lock/);
+});

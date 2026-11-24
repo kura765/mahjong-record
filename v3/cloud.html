@@ -17,7 +17,12 @@
 <div id="roomDetails" class="hidden"><p id="roomInfo"></p><button id="invite">招待リンクを作成（24時間・1回限り）</button>
 <p id="inviteOutput" class="small"></p>
 <h2>保存済みの半荘</h2><p id="metaStatus" class="small"></p><ul id="matches"></ul><button class="secondary" id="export" disabled>v2.22互換バックアップを書き出す</button>
-<div id="ownerActions"><h2>バックアップの取り込み</h2>
+<div id="ownerActions">
+<h2>試験入力から変更を反映</h2>
+<p class="small">v3.0試験入力の記録を初回保存した後、編集した半荘を1件ずつ更新できます。変更前のクラウド版番号と比較し、他端末で変更されていれば上書きを拒否します。自動同期ではありません。</p>
+<button id="scanUpdates" class="secondary">更新候補を調べる</button>
+<div id="updateReview" class="hidden"><p id="updateStatus"></p><select id="updateTarget"></select><button id="applyUpdate">選択した半荘を反映する</button></div>
+<h2>バックアップの取り込み</h2>
 <p class="small">v2.22と同じサイトのドメイン・同じブラウザに保存された記録を読み取るか、バックアップJSONを選べます。NetlifyとGitHub Pagesなど、ドメインが違う場合はJSONを選んでください。<strong>どちらも確認するまで送信しません。</strong>ローカルの記録は変更されません。</p>
 <button id="scanLocal" class="secondary">同じドメインのv2.22記録を確認</button>
 <button id="scanTrial" class="secondary">v3.0試験入力の記録を確認</button>
@@ -35,7 +40,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const $=id=>document.getElementById(id);
 const confKey="mahjong-v3-public-supabase-config";
-let sb=null,me=null,currentRoom=null,rooms=[],snapshots=[],roomMeta=null,preparedImport=null;
+let sb=null,me=null,currentRoom=null,rooms=[],snapshots=[],roomMeta=null,preparedImport=null,updateCandidates=[];
 const notice=(msg,kind="")=>{$("message").textContent=msg;$("message").className=kind;};
 const err=e=>{notice(e?.message||String(e),"error");};
 const enc=o=>JSON.stringify(o);
@@ -110,7 +115,7 @@ async function refreshRooms(chosen=null){
 $("refresh").onclick=()=>refreshRooms().catch(err);
 $("rooms").onchange=e=>selectRoom(e.target.value).catch(err);
 async function selectRoom(id){
- currentRoom=rooms.find(r=>r.id===id)||null;preparedImport=null;$("importReview").classList.add("hidden");$("roomDetails").classList.toggle("hidden",!currentRoom);
+ currentRoom=rooms.find(r=>r.id===id)||null;preparedImport=null;updateCandidates=[];$("updateReview").classList.add("hidden");$("importReview").classList.add("hidden");$("roomDetails").classList.toggle("hidden",!currentRoom);
  if(!currentRoom){snapshots=[];roomMeta=null;preparedImport=null;$("importReview").classList.add("hidden");return;}
  const owner=currentRoom.owner_id===me.id;
  $("invite").classList.toggle("hidden",!owner);$("ownerActions").classList.toggle("hidden",!owner);
@@ -161,6 +166,89 @@ $("export").onclick=()=>{
   filename(backup,"mahjong-v3-full-backup");
   notice("v2.22のバックアップ形式で書き出しを開始しました。ダウンロードしたファイルを確認してください。","ok");
  }catch(e){err(e);}
+};
+const CHECKPOINT_PREFIX="mahjongV3TrialCloudCheckpoint:";
+function stableJson(v){
+ return JSON.stringify(v,(_,x)=>x&&typeof x==="object"&&!Array.isArray(x)
+  ?Object.fromEntries(Object.keys(x).sort().map(k=>[k,x[k]])):x);
+}
+function checkpointKey(roomId){return CHECKPOINT_PREFIX+roomId;}
+function loadCheckpoint(roomId){
+ try{
+  const x=JSON.parse(localStorage.getItem(checkpointKey(roomId))||"null");
+  return x&&x.schema===1&&x.roomId===roomId&&typeof x.items==="object"&&x.items!==null?x:null;
+ }catch(e){return null;}
+}
+function saveCheckpoint(roomId,checked,cloudRecords){
+ const cloudMap=new Map(cloudRecords.map(x=>[x.match_key,x]));
+ const checkpoint={schema:1,roomId,meta:checked.meta,items:{}};
+ for(const item of checked.items){
+  const server=cloudMap.get(item.key);
+  if(!server||stableJson(server.payload)!==stableJson(item.payload))
+   throw Error("サーバーの保存結果と試験入力データが一致しません。同期基準は作成しません。");
+  checkpoint.items[item.key]={version:server.version,payload:item.payload};
+ }
+ localStorage.setItem(checkpointKey(roomId),JSON.stringify(checkpoint));
+}
+$("scanUpdates").onclick=async()=>{
+ try{
+  updateCandidates=[];$("updateReview").classList.add("hidden");
+  if(!currentRoom||currentRoom.owner_id!==me?.id)throw Error("ルーム作成者のみ更新できます。");
+  const raw=localStorage.getItem("mahjongV3Trial");
+  if(!raw)throw Error("このブラウザにv3.0試験入力の記録がありません。");
+  const checked=checkedBackup(JSON.parse(raw)),checkpoint=loadCheckpoint(currentRoom.id);
+  if(!checkpoint)throw Error("同期基準がありません。まず試験入力データをこのルームに初回取り込みしてください。");
+  if(stableJson(checked.meta)!==stableJson(checkpoint.meta))
+   throw Error("プレイヤーやルール等の設定が変更されています。半荘だけを更新できません。");
+  const selectedRoomId=currentRoom.id;
+  const {data,error}=await sb.from("mahjong_room_matches").select("match_key,payload,version").eq("room_id",selectedRoomId);
+  if(error)throw error;
+  if(currentRoom?.id!==selectedRoomId)throw Error("ルームが切り替わりました。");
+  const remote=new Map((data||[]).map(x=>[x.match_key,x]));
+  const known=checkpoint.items;
+  for(const key of Object.keys(known)){
+   if(!checked.items.some(x=>x.key===key))
+    throw Error("記録の削除・中断/完了への状態変更は未対応です: "+key);
+  }
+  for(const item of checked.items){
+   const base=known[item.key],server=remote.get(item.key);
+   if(base){
+    if(!server||server.version!==base.version||stableJson(server.payload)!==stableJson(base.payload))
+     throw Error("他端末の変更またはクラウド側の差異が検出されました: "+item.key+"。上書きしません。");
+    if(stableJson(item.payload)!==stableJson(base.payload))
+     updateCandidates.push({item,expected:base.version,kind:"更新",roomId:selectedRoomId});
+   }else{
+    if(server)throw Error("同期基準のない半荘IDがクラウドに存在します: "+item.key);
+    // A new local half-game is safe to create without an expected version.
+    updateCandidates.push({item,expected:null,kind:"新規追加",roomId:selectedRoomId});
+   }
+  }
+  $("updateReview").classList.remove("hidden");
+  $("updateStatus").textContent=updateCandidates.length+"件の反映候補があります。1件ずつ確認して反映できます。";
+  $("updateTarget").replaceChildren(...updateCandidates.map((x,i)=>new Option(x.kind+"："+x.item.key,i)));
+  $("applyUpdate").disabled=updateCandidates.length===0;
+  notice("同期候補の比較が完了しました。クラウドへの変更はまだありません。","ok");
+ }catch(e){updateCandidates=[];$("updateReview").classList.add("hidden");err(e);}
+};
+$("applyUpdate").onclick=async()=>{
+ try{
+  const candidate=updateCandidates[Number($("updateTarget").value)];
+  if(!candidate||!currentRoom||candidate.roomId!==currentRoom.id||currentRoom.owner_id!==me?.id)
+   throw Error("更新候補を再確認してください。");
+  if(!confirm(candidate.item.key+" をクラウドに"+candidate.kind+"しますか？"))return;
+  $("applyUpdate").disabled=true;
+  const newVersion=await rpc("mahjong_save_match",{
+   p_room_id:candidate.roomId,p_match_key:candidate.item.key,
+   p_payload:candidate.item.payload,p_expected_version:candidate.expected
+  });
+  // Persist the exact acknowledged revision, never assume a subsequent refresh is safe.
+  const checkpoint=loadCheckpoint(candidate.roomId);
+  if(!checkpoint)throw Error("クラウド更新後、ローカルの同期基準が見つかりません。記録をバックアップしてください。");
+  checkpoint.items[candidate.item.key]={version:newVersion,payload:candidate.item.payload};
+  localStorage.setItem(checkpointKey(candidate.roomId),JSON.stringify(checkpoint));
+  await selectRoom(candidate.roomId);
+  notice(candidate.item.key+" をクラウドへ反映しました（v"+newVersion+"）。","ok");
+ }catch(e){$("applyUpdate").disabled=false;err(e);}
 };
 const MAIN_KEY="mahjongPrototypeV1";
 const RECOVERY_KEY="mahjongPrototypeV1_recovery";
@@ -252,8 +340,13 @@ $("upload").onclick=async()=>{
   const plan=preparedImport.checked;
   if(!confirm("ルーム「"+currentRoom.title+"」に半荘"+plan.items.length+"件と設定情報を保存します。アップロードを実行しますか？"))return;
   $("upload").disabled=true;
-  const result=await rpc("mahjong_import_matches",{p_room_id:currentRoom.id,p_items:plan.items,p_meta:plan.meta});
-  await selectRoom(currentRoom.id);
+  const syncRoomId=currentRoom.id;
+  const preparedSource=preparedImport.source;
+  const result=await rpc("mahjong_import_matches",{p_room_id:syncRoomId,p_items:plan.items,p_meta:plan.meta});
+  await selectRoom(syncRoomId);
+  if(preparedSource==="v3.0試験入力（このブラウザ)"){
+   try{saveCheckpoint(syncRoomId,plan,snapshots);}catch(e){notice("保存しましたが同期基準を作成できませんでした: "+e.message,"error");return;}
+  }
   notice("取り込み完了：新規 "+result.added+"件、重複して省略 "+result.skipped+"件。元のブラウザ内データは変更していません。","ok");
  }catch(e){$("upload").disabled=false;err(e);}
 };

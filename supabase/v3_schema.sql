@@ -1,7 +1,6 @@
 -- Mahjong Record v3: private rooms and safe, versioned match snapshots.
 -- Execute in Supabase SQL editor on a NEW project after reviewing the schema.
--- Requires Supabase Auth and pgcrypto. No service_role credentials in browser.
-create extension if not exists pgcrypto;
+-- Requires Supabase Auth and PostgreSQL 14+ (built-in SHA-256). No service_role credentials in browser.
 
 create table if not exists public.mahjong_rooms (
   id uuid primary key default gen_random_uuid(),
@@ -111,9 +110,9 @@ begin
  if auth.uid() is null or not public.mahjong_is_owner(p_room_id) then
    raise exception 'Not room owner';
  end if;
- v_token := encode(extensions.gen_random_bytes(32),'hex');
+ v_token := replace(gen_random_uuid()::text,'-','') || replace(gen_random_uuid()::text,'-','');
  insert into public.mahjong_room_invites(room_id,token_hash,expires_at)
- values (p_room_id,encode(extensions.digest(v_token,'sha256'),'hex'),now()+interval '24 hours');
+ values (p_room_id,encode(pg_catalog.sha256(convert_to(v_token,'UTF8')),'hex'),now()+interval '24 hours');
  return v_token;
 end;$$;
 
@@ -126,7 +125,7 @@ begin
  -- UPDATE lock makes a single-use token safe under simultaneous requests.
  update public.mahjong_room_invites
  set used_at=now(),used_by=auth.uid()
- where token_hash=encode(extensions.digest(p_token,'sha256'),'hex')
+ where token_hash=encode(pg_catalog.sha256(convert_to(p_token,'UTF8')),'hex')
  and used_at is null and expires_at>now()
  returning room_id into v_room;
  if v_room is null then raise exception 'Invitation expired or already used'; end if;

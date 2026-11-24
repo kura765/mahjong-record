@@ -263,7 +263,7 @@ begin
    v_meta_created := true;
  end if;
  return jsonb_build_object('added',v_added,'skipped',v_skipped,'metadata_created',v_meta_created);
-end;$;
+end;$$;
 
 revoke all on function public.mahjong_create_room(text),
  public.mahjong_create_invite(uuid),public.mahjong_accept_invite(text),

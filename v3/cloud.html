@@ -18,8 +18,8 @@
 <p id="inviteOutput" class="small"></p>
 <h2>保存済みの半荘</h2><p id="metaStatus" class="small"></p><ul id="matches"></ul><button class="secondary" id="export" disabled>v2.22互換バックアップを書き出す</button>
 <div id="ownerActions"><h2>バックアップの取り込み</h2>
-<p class="small">同じブラウザに保存されたv2.22の記録を読み取るか、バックアップJSONを選べます。<strong>どちらも確認するまで送信しません。</strong>ローカルの記録は変更されません。</p>
-<button id="scanLocal" class="secondary">このブラウザのv2.22記録を確認</button>
+<p class="small">v2.22と同じサイトのドメイン・同じブラウザに保存された記録を読み取るか、バックアップJSONを選べます。NetlifyとGitHub Pagesなど、ドメインが違う場合はJSONを選んでください。<strong>どちらも確認するまで送信しません。</strong>ローカルの記録は変更されません。</p>
+<button id="scanLocal" class="secondary">同じドメインのv2.22記録を確認</button>
 <p id="localStatus" class="small"></p>
 <label for="backup">または、バックアップJSONを選択</label><input type="file" id="backup" accept=".json,application/json">
 <button id="inspectFile" class="secondary">ファイルの内容を確認</button>
@@ -213,7 +213,7 @@ $("scanLocal").onclick=()=>{
  try{
   // v2.22 uses this origin-wide key. Never write either key.
   const primary=localStorage.getItem(MAIN_KEY),secondary=localStorage.getItem(RECOVERY_KEY);
-  if(primary===null&&secondary===null)throw Error("このサイトの保存領域にv2.22の記録がありません。別の端末ならJSONバックアップを使用してください。");
+  if(primary===null&&secondary===null)throw Error("このサイトの保存領域にv2.22の記録がありません。Netlifyなど異なるドメインや別端末の場合はJSONバックアップを使用してください。");
   let selected=null,source="";
   if(primary!==null){
    try{const d=JSON.parse(primary);checkedBackup(d);selected=d;source="このブラウザの通常保存データ";}

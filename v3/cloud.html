@@ -17,6 +17,14 @@
 <div id="roomDetails" class="hidden"><p id="roomInfo"></p><button id="invite">招待リンクを作成（24時間・1回限り）</button>
 <p id="inviteOutput" class="small"></p>
 <h2>保存済みの半荘</h2><p id="metaStatus" class="small"></p><ul id="matches"></ul><button class="secondary" id="export" disabled>v2.22互換バックアップを書き出す</button>
+<div id="ownerPull" style="border:1px solid #dce4ee;border-radius:12px;padding:12px;margin:12px 0">
+<h2>クラウドから試験入力へ取り込む</h2>
+<p class="small">ローカルとクラウドの記録を同期基準と比較します。変更が衝突する場合や、設定が変わっている場合は取り込みません。確認後のみローカルに保存します。</p>
+<button id="comparePull" class="secondary">差分を確認</button>
+<div id="pullReview" class="hidden"><p id="pullStatus"></p><button id="downloadLocalBeforePull" class="secondary">現在の試験入力をバックアップ</button>
+<label style="display:flex;align-items:center;gap:8px;font-weight:normal;font-size:13px"><input type="checkbox" id="pullBackupConfirmed" style="width:auto;margin:0">バックアップファイルを保存・確認しました</label>
+<button id="applyPull" disabled>クラウドの変更を取り込む</button></div>
+</div>
 <div id="ownerActions">
 <h2>試験入力から変更を反映</h2>
 <p class="small">v3.0試験入力の記録を初回保存した後、編集した半荘や進行中から完了・中断などの状態変更を1件ずつ反映できます。変更前のクラウド版番号と比較し、他端末で変更されていれば上書きを拒否します。自動同期ではありません。</p>
@@ -48,6 +56,7 @@ const $=id=>document.getElementById(id);
 const confKey="mahjong-v3-public-supabase-config";
 let sb=null,me=null,currentRoom=null,rooms=[],snapshots=[],roomMeta=null,preparedImport=null,updateCandidates=[];
 let autoSyncEnabled=false,autoSyncBusy=false,autoSyncRoomId=null;
+let pullPlan=null;
 const notice=(msg,kind="")=>{$("message").textContent=msg;$("message").className=kind;};
 const err=e=>{notice(e?.message||String(e),"error");};
 const enc=o=>JSON.stringify(o);
@@ -124,10 +133,10 @@ $("refresh").onclick=()=>refreshRooms().catch(err);
 $("rooms").onchange=e=>selectRoom(e.target.value).catch(err);
 async function selectRoom(id){
  if(autoSyncEnabled&&id!==autoSyncRoomId)stopAutoSync("ルームを切り替えたため停止しました。");
- currentRoom=rooms.find(r=>r.id===id)||null;preparedImport=null;updateCandidates=[];$("updateReview").classList.add("hidden");$("importReview").classList.add("hidden");$("roomDetails").classList.toggle("hidden",!currentRoom);
+ currentRoom=rooms.find(r=>r.id===id)||null;pullPlan=null;$("pullReview").classList.add("hidden");$("pullBackupConfirmed").checked=false;preparedImport=null;updateCandidates=[];$("updateReview").classList.add("hidden");$("importReview").classList.add("hidden");$("roomDetails").classList.toggle("hidden",!currentRoom);
  if(!currentRoom){snapshots=[];roomMeta=null;preparedImport=null;$("importReview").classList.add("hidden");return;}
  const owner=currentRoom.owner_id===me.id;
- $("invite").classList.toggle("hidden",!owner);$("ownerActions").classList.toggle("hidden",!owner);
+ $("invite").classList.toggle("hidden",!owner);$("ownerActions").classList.toggle("hidden",!owner);$("ownerPull").classList.toggle("hidden",!owner);
  $("roomInfo").textContent=currentRoom.title+" ／ "+(owner?"作成者（編集可能）":"参加者（閲覧専用）");
  $("inviteOutput").textContent="";
  const {data,error}=await sb.from("mahjong_room_matches").select("room_id,match_key,payload,version,updated_at").eq("room_id",id).order("updated_at",{ascending:false});
@@ -280,6 +289,117 @@ setInterval(()=>{if(autoSyncEnabled)checkAutoSync();},15000);
 document.addEventListener("visibilitychange",()=>{
  if(document.visibilityState==="visible"&&autoSyncEnabled)checkAutoSync();
 });
+function comparePullData(local,checkpoint,remoteMeta,cloudRecords){
+ if(!checkpoint||checkpoint.schema!==1)throw Error("同期基準がありません。先にこの端末で初回取り込みしてください。");
+ if(stableJson(local.meta)!==stableJson(checkpoint.meta)||stableJson(remoteMeta)!==stableJson(checkpoint.meta))
+  throw Error("プレイヤーやルール設定が異なります。自動統合はできません。");
+ const baseline=new Map(Object.entries(checkpoint.items));
+ const localMap=new Map(local.items.map(x=>[x.key,x]));
+ const remoteMap=new Map(cloudRecords.map(x=>[x.match_key,x]));
+ const planned=new Map(local.items.map(x=>[x.key,x]));
+ const newCheckpoint={schema:1,roomId:checkpoint.roomId,meta:checkpoint.meta,items:{}};
+ let pulled=0,preserved=0;
+ const idOf=k=>String(k).slice(String(k).indexOf(":")+1);
+ const allIds=new Map();
+ for(const [key] of localMap){const id=idOf(key);if(allIds.has(id))throw Error("ローカルで半荘IDが重複: "+id);allIds.set(id,key);}
+ for(const [key] of remoteMap){const id=idOf(key);if([...remoteMap.keys()].some(other=>other!==key&&idOf(other)===id))throw Error("クラウドで半荘IDが重複: "+id);}
+ const baselineIds=new Map();
+ for(const [key,base] of baseline){
+  const id=idOf(key);
+  if(baselineIds.has(id))throw Error("同期基準の半荘IDが重複: "+id);
+  baselineIds.set(id,{key,base});
+ }
+ // Work by original match ID: cloud lifecycle transitions may change the state prefix.
+ for(const [id,{key:oldKey,base}] of baselineIds){
+  const localKey=allIds.get(id);
+  if(!localKey)throw Error("ローカルから削除された半荘は自動統合できません: "+id);
+  const loc=localMap.get(localKey);
+  const remoteEntries=[...remoteMap.entries()].filter(([k])=>idOf(k)===id);
+  if(remoteEntries.length!==1)throw Error("クラウドで削除・重複した半荘は自動統合できません: "+id);
+  const [serverKey,server]=remoteEntries[0];
+  if(!Number.isSafeInteger(server.version)||server.version<1)throw Error("クラウド版番号が不正: "+id);
+  const localChanged=localKey!==oldKey||stableJson(loc.payload)!==stableJson(base.payload);
+  const serverChanged=serverKey!==oldKey||server.version!==base.version||stableJson(server.payload)!==stableJson(base.payload);
+  if(localChanged&&serverChanged)throw Error("両方で変更された半荘があります: "+id+"。手動解決が必要です。");
+  if(serverChanged){
+   planned.delete(localKey);
+   planned.set(serverKey,{key:serverKey,payload:server.payload});
+   pulled++;
+  }else if(localChanged)preserved++;
+  newCheckpoint.items[serverKey]={version:server.version,payload:server.payload};
+ }
+ // New remote records are safe only if their original ID does not already exist locally.
+ for(const [key,server] of remoteMap){
+  const id=idOf(key);
+  if(baselineIds.has(id))continue;
+  if(allIds.has(id))throw Error("未追跡の同じ半荘IDがローカル・クラウド双方にあります: "+id);
+  if(!Number.isSafeInteger(server.version)||server.version<1)throw Error("クラウド版番号が不正: "+id);
+  planned.set(key,{key,payload:server.payload});
+  newCheckpoint.items[key]={version:server.version,payload:server.payload};
+  pulled++;
+ }
+ const merged=reconstructBackup(local.meta,[...planned.values()].map(x=>({match_key:x.key,payload:x.payload})));
+ // Re-run structural validation before writing, and guard against unexpected size.
+ checkedBackup(merged);
+ return {merged,checkpoint:newCheckpoint,pulled,preserved};
+}
+function invalidatePull(){
+ pullPlan=null;
+ $("pullReview").classList.add("hidden");
+ $("pullBackupConfirmed").checked=false;
+ $("applyPull").disabled=true;
+}
+$("pullBackupConfirmed").onchange=()=>{$("applyPull").disabled=!pullPlan||!$("pullBackupConfirmed").checked||pullPlan.pulled===0;};
+$("downloadLocalBeforePull").onclick=()=>{
+ try{
+  if(!pullPlan)throw Error("差分を再確認してください。");
+  filename(JSON.parse(pullPlan.localRaw),"mahjong-before-cloud-pull");
+ }catch(e){err(e);}
+};
+$("comparePull").onclick=async()=>{
+ try{
+  invalidatePull();
+  if(autoSyncEnabled)throw Error("先に自動反映を停止してください。");
+  if(!currentRoom||!me||currentRoom.owner_id!==me.id)throw Error("ルーム作成者のみ実行できます。");
+  const roomId=currentRoom.id,localRaw=localStorage.getItem("mahjongV3Trial");
+  if(!localRaw)throw Error("この端末にv3.0試験入力データがありません。");
+  const local=checkedBackup(JSON.parse(localRaw)),checkpoint=loadCheckpoint(roomId);
+  const {data:records,error}=await sb.from("mahjong_room_matches").select("match_key,payload,version").eq("room_id",roomId);
+  if(error)throw error;
+  const {data:settings,error:metaError}=await sb.from("mahjong_room_backup_meta").select("payload").eq("room_id",roomId).maybeSingle();
+  if(metaError)throw metaError;
+  if(currentRoom?.id!==roomId)throw Error("ルームが変わりました。");
+  const result=comparePullData(local,checkpoint,settings?.payload,(records||[]));
+  pullPlan={...result,roomId,localRaw,remoteFingerprint:stableJson({records,meta:settings?.payload})};
+  $("pullReview").classList.remove("hidden");
+  $("pullStatus").textContent="クラウドから取り込む変更："+result.pulled+"件。端末の未反映変更："+result.preserved+"件（維持）。";
+  $("applyPull").disabled=true;
+  notice("差分比較が完了しました。ローカルデータは変更していません。","ok");
+ }catch(e){invalidatePull();err(e);}
+};
+$("applyPull").onclick=async()=>{
+ try{
+  const plan=pullPlan;
+  if(!plan||!$("pullBackupConfirmed").checked)throw Error("差分確認とバックアップ保存が必要です。");
+  if(autoSyncEnabled||!currentRoom||currentRoom.id!==plan.roomId)throw Error("ルームが変わりました。");
+  if(localStorage.getItem("mahjongV3Trial")!==plan.localRaw)throw Error("確認後にローカル記録が変わりました。再比較してください。");
+  const {data:records,error}=await sb.from("mahjong_room_matches").select("match_key,payload,version").eq("room_id",plan.roomId);
+  if(error)throw error;
+  const {data:settings,error:metaError}=await sb.from("mahjong_room_backup_meta").select("payload").eq("room_id",plan.roomId).maybeSingle();
+  if(metaError)throw metaError;
+  if(stableJson({records,meta:settings?.payload})!==plan.remoteFingerprint)
+   throw Error("確認後にクラウドが変更されました。再比較してください。");
+  if(!confirm("クラウドの変更 "+plan.pulled+"件を試験入力へ取り込みます。事前のバックアップを確認しましたか？"))return;
+  // Stage recovery first; never overwrite original v2.22 keys.
+  const next=JSON.stringify(plan.merged);
+  localStorage.setItem("mahjongV3Trial_recovery",plan.localRaw);
+  localStorage.setItem("mahjongV3Trial",next);
+  if(localStorage.getItem("mahjongV3Trial")!==next)throw Error("ローカル書き込みの検証に失敗しました。");
+  localStorage.setItem(checkpointKey(plan.roomId),JSON.stringify(plan.checkpoint));
+  invalidatePull();
+  notice("クラウドの変更 "+plan.pulled+"件を取り込みました。試験入力ページを再読込して確認してください。","ok");
+ }catch(e){invalidatePull();err(e);}
+};
 function originalMatchId(key){return String(key).slice(String(key).indexOf(":")+1);}
 function buildUpdateCandidates(checked,checkpoint,remote,roomId){
  const known=checkpoint.items,localById=new Map(),oldById=new Map(),candidates=[];

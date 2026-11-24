@@ -168,12 +168,79 @@ begin
  return v_version;
 end;$$;
 
+-- Atomic, idempotent backup import. No partial batch persists on failure.
+-- Existing identical snapshots are skipped. Changed snapshots always require explicit editing.
+create or replace function public.mahjong_import_matches(p_room_id uuid,p_items jsonb)
+returns jsonb language plpgsql security definer set search_path = '' as $
+declare
+ v_item jsonb;
+ v_key text;
+ v_payload jsonb;
+ v_seen text[] := array[]::text[];
+ v_existing jsonb;
+ v_added integer := 0;
+ v_skipped integer := 0;
+begin
+ if auth.uid() is null or not public.mahjong_is_owner(p_room_id) then
+  raise exception 'Not room owner';
+ end if;
+ if p_items is null or jsonb_typeof(p_items) <> 'array'
+    or jsonb_array_length(p_items) > 500 then
+  raise exception 'Invalid batch (maximum 500 records)';
+ end if;
+ -- Prevent concurrent imports for the same room. Other writes remain safe via PK conflicts.
+ perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_room_id::text, 0));
+
+ -- Validate the entire batch and all existing snapshots before starting inserts.
+ for v_item in select value from jsonb_array_elements(p_items) loop
+  if jsonb_typeof(v_item) <> 'object' then raise exception 'Invalid item'; end if;
+  v_key := v_item->>'key';
+  v_payload := v_item->'payload';
+  if v_key is null or char_length(v_key) not between 1 and 120
+   or v_key !~ '^(completed|suspended|active):'
+   or v_payload is null or jsonb_typeof(v_payload) <> 'object'
+   or v_payload->>'kind' not in ('completed','suspended','active')
+   or (v_key like 'completed:%' and v_payload->>'kind'<>'completed')
+   or (v_key like 'suspended:%' and v_payload->>'kind'<>'suspended')
+   or (v_key like 'active:%' and v_payload->>'kind'<>'active')
+   or jsonb_typeof(v_payload->'match') <> 'object'
+   or octet_length(v_payload::text) > 500000
+  then raise exception 'Invalid batch item'; end if;
+  if v_key = any(v_seen) then raise exception 'Duplicate key in batch: %', v_key; end if;
+  v_seen := array_append(v_seen,v_key);
+  select payload into v_existing from public.mahjong_room_matches
+    where room_id = p_room_id and match_key = v_key;
+  if found and v_existing <> v_payload then
+    raise exception 'Conflict for existing match: %', v_key;
+  end if;
+ end loop;
+
+ -- All inserts are transactional, including history. Race-induced conflicts fail closed.
+ for v_item in select value from jsonb_array_elements(p_items) loop
+  v_key := v_item->>'key'; v_payload := v_item->'payload';
+  if exists(select 1 from public.mahjong_room_matches
+     where room_id=p_room_id and match_key=v_key) then
+    v_skipped := v_skipped + 1;
+  else
+    insert into public.mahjong_room_matches(room_id,match_key,payload,version,updated_by)
+      values(p_room_id,v_key,v_payload,1,auth.uid());
+    insert into public.mahjong_room_match_history
+      (room_id,match_key,old_version,new_version,payload,changed_by)
+      values(p_room_id,v_key,null,1,v_payload,auth.uid());
+    v_added := v_added + 1;
+  end if;
+ end loop;
+ return jsonb_build_object('added',v_added,'skipped',v_skipped);
+end;$;
+
 revoke all on function public.mahjong_create_room(text),
  public.mahjong_create_invite(uuid),public.mahjong_accept_invite(text),
- public.mahjong_save_match(uuid,text,jsonb,integer) from public,anon;
+ public.mahjong_save_match(uuid,text,jsonb,integer),
+ public.mahjong_import_matches(uuid,jsonb) from public,anon;
 grant execute on function public.mahjong_create_room(text),
  public.mahjong_create_invite(uuid),public.mahjong_accept_invite(text),
- public.mahjong_save_match(uuid,text,jsonb,integer) to authenticated;
+ public.mahjong_save_match(uuid,text,jsonb,integer),
+ public.mahjong_import_matches(uuid,jsonb) to authenticated;
 
 -- For Supabase Realtime, add mahjong_room_matches to supabase_realtime publication
 -- manually after RLS checks and the application's membership logic are tested.

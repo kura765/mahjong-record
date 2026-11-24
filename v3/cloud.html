@@ -17,7 +17,7 @@
 <div id="roomDetails" class="hidden"><p id="roomInfo"></p><button id="invite">招待リンクを作成（24時間・1回限り）</button>
 <p id="inviteOutput" class="small"></p>
 <h2>保存済みの半荘</h2><ul id="matches"></ul><button class="secondary" id="export">このルームのデータをJSONで保存</button>
-<div id="ownerActions"><h2>バックアップの取り込み</h2><p class="small">既存の半荘は同じ内容ならスキップし、内容が違えば中止します。元の記録は変更しません。</p><input type="file" id="backup" accept=".json,application/json"><button id="upload">競合を調べて追加保存する</button></div></div>
+<div id="ownerActions"><h2>バックアップの取り込み</h2><p class="small">既存の半荘は同じ内容ならスキップし、内容が違えば一括で中止します。途中で失敗しても一部だけ保存されることはありません。元の記録は変更しません。</p><input type="file" id="backup" accept=".json,application/json"><button id="upload">競合を調べて追加保存する</button></div></div>
 </section><section class="card"><h2>安全性について</h2><p class="small">招待リンクは参加権限を持つ秘密情報です。公開しないでください。参加にはメール認証が必要です。ルーム作成者のみ半荘を書き込めます。参加者は閲覧専用です。この試験版では複数人の同時編集・自動同期を提供しません。</p>
 <p class="small"><a href="migration-check.html">移行前チェック</a>　/　<a href="import-preview.html">ローカル統合プレビュー</a></p></section>
 </main><script type="module">
@@ -130,28 +130,21 @@ $("upload").onclick=async()=>{
   const data=JSON.parse(await file.text());
   if(!data||!Array.isArray(data.matches)||!Array.isArray(data.suspendedMatches||[])||!(data.active==null||typeof data.active==="object"))throw Error("通常のバックアップ形式ではありません。");
   const all=[...data.matches.map(m=>["completed",m]),...(data.suspendedMatches||[]).map(m=>["suspended",m]),...(data.active?[["active",data.active]]:[])];
-  const keys=new Set(),remote=new Map(snapshots.map(s=>[s.match_key,s]));
-  const plans=[];
+  const keys=new Set(),items=[];
+  if(all.length>500)throw Error("一度に取り込めるのは500件までです。複数のバックアップに分けてください。");
   for(const [kind,m] of all){
-   if(!m||typeof m!=="object"||!Array.isArray(m.names)||m.names.length!==4||!Array.isArray(m.hands)||!Array.isArray(m.points)||m.points.length!==4||m.id==null)throw Error("バックアップの半荘形式に問題があります。");
+   if(!m||typeof m!=="object"||!Array.isArray(m.names)||m.names.length!==4||!m.names.every(x=>typeof x==="string"&&x.trim())||!Array.isArray(m.hands)||!Array.isArray(m.points)||m.points.length!==4||!m.points.every(Number.isSafeInteger)||m.id==null)throw Error("バックアップの半荘形式に問題があります。");
    const key=kind+":"+String(m.id);
    if(key.length>120||keys.has(key))throw Error("半荘IDの重複・長さを確認してください: "+key);
    keys.add(key);
-   const payload={kind,match:m};const existing=remote.get(key);
-   if(existing){
-    // JSON key ordering is normalized before comparison.
-    const normalize=x=>JSON.stringify(x,(_,v)=>v&&typeof v==="object"&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
-    if(normalize(existing.payload)!==normalize(payload))throw Error("クラウド側に同じIDで異なる内容があります: "+key+"。取り込みを停止しました。");
-   }else plans.push({key,payload});
+   items.push({key,payload:{kind,match:m}});
   }
-  if(!plans.length){notice("すべて保存済みでした。変更はありません。","ok");return;}
-  if(!confirm(plans.length+"件の半荘を新規保存します。よろしいですか？"))return;
-  let added=0;
-  for(const plan of plans){
-   await rpc("mahjong_save_match",{p_room_id:currentRoom.id,p_match_key:plan.key,p_payload:plan.payload,p_expected_version:null});
-   added++;
-  }
-  await selectRoom(currentRoom.id);notice(added+"件の半荘を追加しました。","ok");
+  if(!items.length){notice("取り込み対象の半荘がありません。","ok");return;}
+  if(!confirm(items.length+"件の半荘を照合します。競合がなければ新しい半荘だけを一括保存します。よろしいですか？"))return;
+  // Single database transaction: any conflict rejects the entire batch.
+  const result=await rpc("mahjong_import_matches",{p_room_id:currentRoom.id,p_items:items});
+  await selectRoom(currentRoom.id);
+  notice("取り込み完了：新規 "+result.added+"件、一致して省略 "+result.skipped+"件。","ok");
  }catch(e){err(e);}
 };
 pending();

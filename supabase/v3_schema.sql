@@ -234,6 +234,20 @@ begin
    or octet_length(v_payload::text) > 500000
   then raise exception 'Invalid batch item'; end if;
   if v_key = any(v_seen) then raise exception 'Duplicate key in batch: %', v_key; end if;
+  -- The original ID must be unique even if a record changes state.
+  if exists (
+    select 1 from unnest(v_seen) as previous_key
+    where substring(previous_key from position(':' in previous_key)+1)
+        = substring(v_key from position(':' in v_key)+1)
+  ) then raise exception 'Duplicate original match ID across states: %', v_key; end if;
+  -- Also prevent a second state of an existing original match ID.
+  if exists (
+    select 1 from public.mahjong_room_matches m
+    where m.room_id=p_room_id
+      and substring(m.match_key from position(':' in m.match_key)+1)
+       = substring(v_key from position(':' in v_key)+1)
+      and m.match_key<>v_key
+  ) then raise exception 'Original match ID already exists in another state: %', v_key; end if;
   v_seen := array_append(v_seen,v_key);
   select payload into v_existing from public.mahjong_room_matches
     where room_id = p_room_id and match_key = v_key for update;

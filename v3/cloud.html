@@ -344,7 +344,7 @@ $("upload").onclick=async()=>{
   const preparedSource=preparedImport.source;
   const result=await rpc("mahjong_import_matches",{p_room_id:syncRoomId,p_items:plan.items,p_meta:plan.meta});
   await selectRoom(syncRoomId);
-  if(preparedSource==="v3.0試験入力（このブラウザ)"){
+  if(preparedSource==="v3.0試験入力（このブラウザ）"){
    try{saveCheckpoint(syncRoomId,plan,snapshots);}catch(e){notice("保存しましたが同期基準を作成できませんでした: "+e.message,"error");return;}
   }
   notice("取り込み完了：新規 "+result.added+"件、重複して省略 "+result.skipped+"件。元のブラウザ内データは変更していません。","ok");

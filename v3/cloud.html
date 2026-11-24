@@ -16,7 +16,7 @@
 <h2>参加できるルーム</h2><button class="secondary" id="refresh">一覧を更新</button><select id="rooms"><option value="">ルームを選択</option></select>
 <div id="roomDetails" class="hidden"><p id="roomInfo"></p><button id="invite">招待リンクを作成（24時間・1回限り）</button>
 <p id="inviteOutput" class="small"></p>
-<h2>保存済みの半荘</h2><ul id="matches"></ul><button class="secondary" id="export">このルームのデータをJSONで保存</button>
+<h2>保存済みの半荘</h2><p id="metaStatus" class="small"></p><ul id="matches"></ul><button class="secondary" id="export" disabled>v2.22互換バックアップを書き出す</button>
 <div id="ownerActions"><h2>バックアップの取り込み</h2><p class="small">既存の半荘は同じ内容ならスキップし、内容が違えば一括で中止します。途中で失敗しても一部だけ保存されることはありません。元の記録は変更しません。</p><input type="file" id="backup" accept=".json,application/json"><button id="upload">競合を調べて追加保存する</button></div></div>
 </section><section class="card"><h2>安全性について</h2><p class="small">招待リンクは参加権限を持つ秘密情報です。公開しないでください。参加にはメール認証が必要です。ルーム作成者のみ半荘を書き込めます。参加者は閲覧専用です。この試験版では複数人の同時編集・自動同期を提供しません。</p>
 <p class="small"><a href="migration-check.html">移行前チェック</a>　/　<a href="import-preview.html">ローカル統合プレビュー</a></p></section>
@@ -24,7 +24,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const $=id=>document.getElementById(id);
 const confKey="mahjong-v3-public-supabase-config";
-let sb=null,me=null,currentRoom=null,rooms=[],snapshots=[];
+let sb=null,me=null,currentRoom=null,rooms=[],snapshots=[],roomMeta=null;
 const notice=(msg,kind="")=>{$("message").textContent=msg;$("message").className=kind;};
 const err=e=>{notice(e?.message||String(e),"error");};
 const enc=o=>JSON.stringify(o);
@@ -100,13 +100,18 @@ $("refresh").onclick=()=>refreshRooms().catch(err);
 $("rooms").onchange=e=>selectRoom(e.target.value).catch(err);
 async function selectRoom(id){
  currentRoom=rooms.find(r=>r.id===id)||null;$("roomDetails").classList.toggle("hidden",!currentRoom);
- if(!currentRoom){snapshots=[];return;}
+ if(!currentRoom){snapshots=[];roomMeta=null;return;}
  const owner=currentRoom.owner_id===me.id;
  $("invite").classList.toggle("hidden",!owner);$("ownerActions").classList.toggle("hidden",!owner);
  $("roomInfo").textContent=currentRoom.title+" ／ "+(owner?"作成者（編集可能）":"参加者（閲覧専用）");
  $("inviteOutput").textContent="";
  const {data,error}=await sb.from("mahjong_room_matches").select("room_id,match_key,payload,version,updated_at").eq("room_id",id).order("updated_at",{ascending:false});
  if(error)throw error;snapshots=data||[];
+ const {data:metaData,error:metaError}=await sb.from("mahjong_room_backup_meta").select("payload,version").eq("room_id",id).maybeSingle();
+ if(metaError)throw metaError;
+ roomMeta=metaData?.payload||null;
+ $("export").disabled=!roomMeta;
+ $("metaStatus").textContent=roomMeta?"プレイヤー・ルール設定を含むバックアップ情報を保存済みです。":"バックアップ情報はまだありません。データ取り込み後に書き出せます。";
  $("matches").replaceChildren(...(snapshots.length?snapshots.map(s=>{const li=document.createElement("li");li.textContent=s.match_key+"（v"+s.version+"）";return li;}):[(()=>{const li=document.createElement("li");li.textContent="まだ記録がありません。";return li;})()]));
 }
 $("invite").onclick=async()=>{
@@ -118,9 +123,33 @@ $("invite").onclick=async()=>{
   await navigator.clipboard.writeText(u.href).then(()=>notice("招待リンクをコピーしました。","ok")).catch(()=>{const t=document.createElement("textarea");t.value=u.href;t.readOnly=true;t.style.width="100%";$("inviteOutput").append(t);notice("招待リンクを下の欄からコピーしてください。");});
  }catch(e){err(e);}
 };
+function reconstructBackup(meta,records){
+ if(!meta||typeof meta!=="object"||Array.isArray(meta)||!Array.isArray(meta.players)||!Array.isArray(meta.playerRegistry))
+  throw Error("完全なバックアップ情報がありません。");
+ const out=JSON.parse(JSON.stringify(meta));
+ if("matches" in out||"active" in out||"suspendedMatches" in out)throw Error("保存済みメタデータに予期しない項目があります。");
+ out.matches=[];out.suspendedMatches=[];out.active=null;
+ const ids=new Set();
+ for(const record of records){
+  const kind=record.payload?.kind,m=record.payload?.match;
+  if(!["completed","suspended","active"].includes(kind)||!m||typeof m!=="object"||String(record.match_key)!==kind+":"+String(m.id))
+   throw Error("クラウド半荘の形式が不正です。");
+  const rawId=String(m.id);
+  if(ids.has(rawId))throw Error("同一の半荘IDが複数の状態で存在します: "+rawId);
+  ids.add(rawId);
+  if(kind==="completed")out.matches.push(m);
+  else if(kind==="suspended")out.suspendedMatches.push(m);
+  else{if(out.active)throw Error("進行中の半荘が複数存在します。");out.active=m;}
+ }
+ return out;
+}
 $("export").onclick=()=>{
- if(!currentRoom)return;
- filename({schema:"mahjong-room-v3-snapshot-1",room:{id:currentRoom.id,title:currentRoom.title},matches:snapshots.map(s=>({match_key:s.match_key,version:s.version,payload:s.payload}))},"mahjong-room");
+ try{
+  if(!currentRoom||!roomMeta)throw Error("メタデータの保存後に書き出せます。");
+  const backup=reconstructBackup(roomMeta,snapshots);
+  filename(backup,"mahjong-v3-full-backup");
+  notice("v2.22のバックアップ形式で書き出しを開始しました。ダウンロードしたファイルを確認してください。","ok");
+ }catch(e){err(e);}
 };
 $("upload").onclick=async()=>{
  try{
@@ -139,12 +168,14 @@ $("upload").onclick=async()=>{
    keys.add(key);
    items.push({key,payload:{kind,match:m}});
   }
-  if(!items.length){notice("取り込み対象の半荘がありません。","ok");return;}
-  if(!confirm(items.length+"件の半荘を照合します。競合がなければ新しい半荘だけを一括保存します。よろしいですか？"))return;
+  if(!Array.isArray(data.players)||!Array.isArray(data.playerRegistry))throw Error("完全なバックアップにはプレイヤー登録表が必要です。v2.22から書き出し直してください。");
+  const meta=JSON.parse(JSON.stringify(data));
+  delete meta.matches;delete meta.suspendedMatches;delete meta.active;
+  if(!confirm(items.length+"件の半荘と設定情報を照合します。競合がなければ一括保存します。よろしいですか？"))return;
   // Single database transaction: any conflict rejects the entire batch.
-  const result=await rpc("mahjong_import_matches",{p_room_id:currentRoom.id,p_items:items});
+  const result=await rpc("mahjong_import_matches",{p_room_id:currentRoom.id,p_items:items,p_meta:meta});
   await selectRoom(currentRoom.id);
-  notice("取り込み完了：新規 "+result.added+"件、一致して省略 "+result.skipped+"件。","ok");
+  notice("取り込み完了：新規 "+result.added+"件、一致して省略 "+result.skipped+"件。プレイヤー・ルール設定も保存しました。","ok");
  }catch(e){err(e);}
 };
 pending();

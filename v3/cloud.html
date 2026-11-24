@@ -20,6 +20,8 @@
 <div id="ownerActions"><h2>バックアップの取り込み</h2>
 <p class="small">v2.22と同じサイトのドメイン・同じブラウザに保存された記録を読み取るか、バックアップJSONを選べます。NetlifyとGitHub Pagesなど、ドメインが違う場合はJSONを選んでください。<strong>どちらも確認するまで送信しません。</strong>ローカルの記録は変更されません。</p>
 <button id="scanLocal" class="secondary">同じドメインのv2.22記録を確認</button>
+<button id="scanTrial" class="secondary">v3.0試験入力の記録を確認</button>
+<a href="play.html" style="display:inline-block;padding:9px 0">v3.0試験入力画面へ</a>
 <p id="localStatus" class="small"></p>
 <label for="backup">または、バックアップJSONを選択</label><input type="file" id="backup" accept=".json,application/json">
 <button id="inspectFile" class="secondary">ファイルの内容を確認</button>
@@ -223,6 +225,16 @@ $("scanLocal").onclick=()=>{
   }
   prepareImport(selected,source);
   $("localStatus").textContent="ローカル保存データを読み取りました。元データに変更はありません。";
+ }catch(e){preparedImport=null;$("importReview").classList.add("hidden");err(e);}
+};
+$("scanTrial").onclick=()=>{
+ try{
+  const main=localStorage.getItem("mahjongV3Trial");
+  if(main===null)throw Error("v3.0試験入力の記録がまだありません。試験入力画面で記録を作ってください。");
+  // Never auto-fallback to a recovery copy if the primary is present but corrupt.
+  const data=JSON.parse(main);
+  prepareImport(data,"v3.0試験入力（このブラウザ）");
+  $("localStatus").textContent="v3.0試験入力の記録を読み取りました。元の保存データは変更していません。";
  }catch(e){preparedImport=null;$("importReview").classList.add("hidden");err(e);}
 };
 $("inspectFile").onclick=async()=>{

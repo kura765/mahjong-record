@@ -209,7 +209,7 @@ begin
   if v_key = any(v_seen) then raise exception 'Duplicate key in batch: %', v_key; end if;
   v_seen := array_append(v_seen,v_key);
   select payload into v_existing from public.mahjong_room_matches
-    where room_id = p_room_id and match_key = v_key;
+    where room_id = p_room_id and match_key = v_key for update;
   if found and v_existing <> v_payload then
     raise exception 'Conflict for existing match: %', v_key;
   end if;

@@ -390,6 +390,8 @@ $("applyPull").onclick=async()=>{
   if(stableJson({records,meta:settings?.payload})!==plan.remoteFingerprint)
    throw Error("確認後にクラウドが変更されました。再比較してください。");
   if(!confirm("クラウドの変更 "+plan.pulled+"件を試験入力へ取り込みます。事前のバックアップを確認しましたか？"))return;
+  if(!currentRoom||currentRoom.id!==plan.roomId||autoSyncEnabled||localStorage.getItem("mahjongV3Trial")!==plan.localRaw)
+   throw Error("確認中に記録か対象ルームが変わりました。最初から比較してください。");
   // Stage recovery first; never overwrite original v2.22 keys.
   const next=JSON.stringify(plan.merged);
   localStorage.setItem("mahjongV3Trial_recovery",plan.localRaw);

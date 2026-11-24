@@ -38,9 +38,15 @@ function getInvite(){
  const u=new URL(location.href);
  const params=new URLSearchParams(u.hash.slice(1));
  const token=params.get("invite");
- return token&&/^[a-f0-9]{64}$/.test(token)?token:null;
+ if(token&&/^[a-f0-9]{64}$/.test(token)){
+  sessionStorage.setItem("mahjong-v3-pending-invite",token);
+  u.hash="";history.replaceState(null,"",u.href);
+  return token;
+ }
+ return sessionStorage.getItem("mahjong-v3-pending-invite");
 }
 function clearInvite(){
+ sessionStorage.removeItem("mahjong-v3-pending-invite");
  const u=new URL(location.href);u.hash="";history.replaceState(null,"",u.href);
 }
 const pending=()=>{const token=getInvite();$("pending").textContent=token?"招待リンクを検出しました。ログイン後「参加する」を押してください。":"";$("join").classList.toggle("hidden",!token);};

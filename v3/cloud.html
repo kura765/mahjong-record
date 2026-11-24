@@ -17,14 +17,23 @@
 <div id="roomDetails" class="hidden"><p id="roomInfo"></p><button id="invite">招待リンクを作成（24時間・1回限り）</button>
 <p id="inviteOutput" class="small"></p>
 <h2>保存済みの半荘</h2><p id="metaStatus" class="small"></p><ul id="matches"></ul><button class="secondary" id="export" disabled>v2.22互換バックアップを書き出す</button>
-<div id="ownerActions"><h2>バックアップの取り込み</h2><p class="small">既存の半荘は同じ内容ならスキップし、内容が違えば一括で中止します。途中で失敗しても一部だけ保存されることはありません。元の記録は変更しません。</p><input type="file" id="backup" accept=".json,application/json"><button id="upload">競合を調べて追加保存する</button></div></div>
+<div id="ownerActions"><h2>バックアップの取り込み</h2>
+<p class="small">同じブラウザに保存されたv2.22の記録を読み取るか、バックアップJSONを選べます。<strong>どちらも確認するまで送信しません。</strong>ローカルの記録は変更されません。</p>
+<button id="scanLocal" class="secondary">このブラウザのv2.22記録を確認</button>
+<p id="localStatus" class="small"></p>
+<label for="backup">または、バックアップJSONを選択</label><input type="file" id="backup" accept=".json,application/json">
+<button id="inspectFile" class="secondary">ファイルの内容を確認</button>
+<div id="importReview" class="hidden" aria-live="polite"><h2>取り込み前の確認</h2><p id="importSource"></p><ul id="importDetails"></ul>
+<p class="small">新しいルームへの初回取り込みを想定しています。設定または記録に差異があればサーバー側で全件を拒否します。取り込み後は元データの保存も続けてください。</p>
+<button id="upload" disabled>確認したデータをクラウドに保存</button>
+</div></div></div>
 </section><section class="card"><h2>安全性について</h2><p class="small">招待リンクは参加権限を持つ秘密情報です。公開しないでください。参加にはメール認証が必要です。ルーム作成者のみ半荘を書き込めます。参加者は閲覧専用です。この試験版では複数人の同時編集・自動同期を提供しません。</p>
 <p class="small"><a href="migration-check.html">移行前チェック</a>　/　<a href="import-preview.html">ローカル統合プレビュー</a></p></section>
 </main><script type="module">
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const $=id=>document.getElementById(id);
 const confKey="mahjong-v3-public-supabase-config";
-let sb=null,me=null,currentRoom=null,rooms=[],snapshots=[],roomMeta=null;
+let sb=null,me=null,currentRoom=null,rooms=[],snapshots=[],roomMeta=null,preparedImport=null;
 const notice=(msg,kind="")=>{$("message").textContent=msg;$("message").className=kind;};
 const err=e=>{notice(e?.message||String(e),"error");};
 const enc=o=>JSON.stringify(o);
@@ -99,8 +108,8 @@ async function refreshRooms(chosen=null){
 $("refresh").onclick=()=>refreshRooms().catch(err);
 $("rooms").onchange=e=>selectRoom(e.target.value).catch(err);
 async function selectRoom(id){
- currentRoom=rooms.find(r=>r.id===id)||null;$("roomDetails").classList.toggle("hidden",!currentRoom);
- if(!currentRoom){snapshots=[];roomMeta=null;return;}
+ currentRoom=rooms.find(r=>r.id===id)||null;preparedImport=null;$("importReview").classList.add("hidden");$("roomDetails").classList.toggle("hidden",!currentRoom);
+ if(!currentRoom){snapshots=[];roomMeta=null;preparedImport=null;$("importReview").classList.add("hidden");return;}
  const owner=currentRoom.owner_id===me.id;
  $("invite").classList.toggle("hidden",!owner);$("ownerActions").classList.toggle("hidden",!owner);
  $("roomInfo").textContent=currentRoom.title+" ／ "+(owner?"作成者（編集可能）":"参加者（閲覧専用）");
@@ -151,32 +160,90 @@ $("export").onclick=()=>{
   notice("v2.22のバックアップ形式で書き出しを開始しました。ダウンロードしたファイルを確認してください。","ok");
  }catch(e){err(e);}
 };
+const MAIN_KEY="mahjongPrototypeV1";
+const RECOVERY_KEY="mahjongPrototypeV1_recovery";
+function checkedBackup(data){
+ if(!data||typeof data!=="object"||Array.isArray(data)||!Array.isArray(data.players)||!data.players.every(p=>typeof p==="string")||!Array.isArray(data.playerRegistry)||!Array.isArray(data.matches)||!Array.isArray(data.suspendedMatches||[])||(data.active!==undefined&&data.active!==null&&(typeof data.active!=="object"||Array.isArray(data.active))))
+  throw Error("v2.22の完全バックアップ形式ではありません。元サイトからJSONを再出力してください。");
+ const ids=new Set(),playerIds=new Set();
+ if(new Set(data.players).size!==data.players.length)throw Error("プレイヤー名が重複しています。");
+ for(const p of data.playerRegistry){
+  if(!p||typeof p.id!=="string"||!p.id||typeof p.name!=="string"||typeof p.deleted!=="boolean"||playerIds.has(p.id))throw Error("プレイヤー登録表のIDが不正または重複しています。");
+  playerIds.add(p.id);
+ }
+ if(data.players.length!==data.playerRegistry.filter(p=>!p.deleted).length)
+  throw Error("プレイヤー一覧と登録表に不整合があります。");
+ const activeNameSet=new Set(data.playerRegistry.filter(p=>!p.deleted).map(p=>p.name));
+ if(activeNameSet.size!==data.players.length||data.players.some(name=>!activeNameSet.has(name)))
+  throw Error("プレイヤー一覧と登録表の名前が一致しません。");
+ const all=[...data.matches.map(m=>["completed",m]),...(data.suspendedMatches||[]).map(m=>["suspended",m]),...(data.active?[["active",data.active]]:[])];
+ if(all.length>500)throw Error("500半荘を超えています。現行の一括取り込み上限を超えるため中止します。");
+ const items=[];
+ for(const [kind,m] of all){
+  if(!m||typeof m!=="object"||Array.isArray(m)||!Array.isArray(m.names)||m.names.length!==4||!m.names.every(n=>typeof n==="string"&&n.trim())||!Array.isArray(m.points)||m.points.length!==4||!m.points.every(Number.isSafeInteger)||!Array.isArray(m.hands)||!Array.isArray(m.playerIds)||m.playerIds.length!==4||!m.playerIds.every(id=>playerIds.has(id))||new Set(m.playerIds).size!==4||!(typeof m.id==="string"||Number.isSafeInteger(m.id))||!String(m.id).trim())
+   throw Error("半荘に形式・プレイヤーIDの不整合があります。");
+  const id=String(m.id),key=kind+":"+id;
+  if(key.length>120||ids.has(id))throw Error("半荘IDが重複または長すぎます: "+id);
+  ids.add(id);
+  items.push({key,payload:{kind,match:m}});
+ }
+ if(data.ruleFormats!==undefined&&!Array.isArray(data.ruleFormats))throw Error("ルールフォーマットが不正です。");
+ if(data.excludedStatsMatches!==undefined&&(data.excludedStatsMatches===null||typeof data.excludedStatsMatches!=="object"||Array.isArray(data.excludedStatsMatches)))throw Error("統計設定が不正です。");
+ const meta=JSON.parse(JSON.stringify(data));
+ delete meta.matches;delete meta.suspendedMatches;delete meta.active;
+ if(new Blob([JSON.stringify(meta)]).size>1950000)throw Error("設定情報のサイズが上限を超えています。");
+ for(const item of items)if(new Blob([JSON.stringify(item.payload)]).size>480000)throw Error("半荘データがサーバーの保存上限を超えます: "+item.key);
+ return {items,meta,counts:{completed:data.matches.length,suspended:(data.suspendedMatches||[]).length,active:data.active?1:0,players:data.playerRegistry.length}};
+}
+function prepareImport(data,source){
+ const checked=checkedBackup(data);
+ if(!currentRoom||currentRoom.owner_id!==me?.id)throw Error("作成者のみ実行できます。");
+ preparedImport={roomId:currentRoom.id,source,checked};
+ $("importReview").classList.remove("hidden");
+ $("importSource").textContent="読込元："+source+"／ルーム："+currentRoom.title;
+ const c=checked.counts;
+ $("importDetails").replaceChildren(...[
+ "完了半荘："+c.completed+"件","中断半荘："+c.suspended+"件","進行中："+c.active+"件",
+ "登録プレイヤー："+c.players+"人","ルール・統計設定：含む","クラウドへの送信：未実施"
+ ].map(t=>{const li=document.createElement("li");li.textContent=t;return li;}));
+ $("upload").disabled=false;
+ notice("読み取りと形式の検査が完了しました。内容を確認してください。","ok");
+}
+$("scanLocal").onclick=()=>{
+ try{
+  // v2.22 uses this origin-wide key. Never write either key.
+  const primary=localStorage.getItem(MAIN_KEY),secondary=localStorage.getItem(RECOVERY_KEY);
+  if(primary===null&&secondary===null)throw Error("このサイトの保存領域にv2.22の記録がありません。別の端末ならJSONバックアップを使用してください。");
+  let selected=null,source="";
+  if(primary!==null){
+   try{const d=JSON.parse(primary);checkedBackup(d);selected=d;source="このブラウザの通常保存データ";}
+   catch(e){throw Error("通常保存データの検査に失敗しました。自動で予備コピーへ切り替えず、v2.22のバックアップ機能で状態を確認してください。詳細："+e.message);}
+  }else{
+   const d=JSON.parse(secondary);checkedBackup(d);selected=d;source="予備コピー（通常データなし）";
+  }
+  prepareImport(selected,source);
+  $("localStatus").textContent="ローカル保存データを読み取りました。元データに変更はありません。";
+ }catch(e){preparedImport=null;$("importReview").classList.add("hidden");err(e);}
+};
+$("inspectFile").onclick=async()=>{
+ try{
+  const file=$("backup").files?.[0];if(!file)throw Error("JSONファイルを選択してください。");
+  if(file.size>25*1024*1024)throw Error("25MB以内のファイルを選択してください。");
+  prepareImport(JSON.parse(await file.text()),"JSONファイル："+file.name);
+ }catch(e){preparedImport=null;$("importReview").classList.add("hidden");err(e);}
+};
+$("backup").addEventListener("change",()=>{preparedImport=null;$("importReview").classList.add("hidden");});
 $("upload").onclick=async()=>{
  try{
-  if(!currentRoom||currentRoom.owner_id!==me?.id)throw Error("ルーム作成者のみ取り込めます。");
-  const file=$("backup").files?.[0];if(!file)throw Error("バックアップJSONを選択してください。");
-  if(file.size>25*1024*1024)throw Error("25MB以内のファイルを選択してください。");
-  const data=JSON.parse(await file.text());
-  if(!data||!Array.isArray(data.matches)||!Array.isArray(data.suspendedMatches||[])||!(data.active==null||typeof data.active==="object"))throw Error("通常のバックアップ形式ではありません。");
-  const all=[...data.matches.map(m=>["completed",m]),...(data.suspendedMatches||[]).map(m=>["suspended",m]),...(data.active?[["active",data.active]]:[])];
-  const keys=new Set(),items=[];
-  if(all.length>500)throw Error("一度に取り込めるのは500件までです。複数のバックアップに分けてください。");
-  for(const [kind,m] of all){
-   if(!m||typeof m!=="object"||!Array.isArray(m.names)||m.names.length!==4||!m.names.every(x=>typeof x==="string"&&x.trim())||!Array.isArray(m.hands)||!Array.isArray(m.points)||m.points.length!==4||!m.points.every(Number.isSafeInteger)||m.id==null)throw Error("バックアップの半荘形式に問題があります。");
-   const key=kind+":"+String(m.id);
-   if(key.length>120||keys.has(key))throw Error("半荘IDの重複・長さを確認してください: "+key);
-   keys.add(key);
-   items.push({key,payload:{kind,match:m}});
-  }
-  if(!Array.isArray(data.players)||!Array.isArray(data.playerRegistry))throw Error("完全なバックアップにはプレイヤー登録表が必要です。v2.22から書き出し直してください。");
-  const meta=JSON.parse(JSON.stringify(data));
-  delete meta.matches;delete meta.suspendedMatches;delete meta.active;
-  if(!confirm(items.length+"件の半荘と設定情報を照合します。競合がなければ一括保存します。よろしいですか？"))return;
-  // Single database transaction: any conflict rejects the entire batch.
-  const result=await rpc("mahjong_import_matches",{p_room_id:currentRoom.id,p_items:items,p_meta:meta});
+  if(!preparedImport||!currentRoom||preparedImport.roomId!==currentRoom.id||currentRoom.owner_id!==me?.id)
+   throw Error("取り込み内容をもう一度確認してください。");
+  const plan=preparedImport.checked;
+  if(!confirm("ルーム「"+currentRoom.title+"」に半荘"+plan.items.length+"件と設定情報を保存します。アップロードを実行しますか？"))return;
+  $("upload").disabled=true;
+  const result=await rpc("mahjong_import_matches",{p_room_id:currentRoom.id,p_items:plan.items,p_meta:plan.meta});
   await selectRoom(currentRoom.id);
-  notice("取り込み完了：新規 "+result.added+"件、一致して省略 "+result.skipped+"件。プレイヤー・ルール設定も保存しました。","ok");
- }catch(e){err(e);}
+  notice("取り込み完了：新規 "+result.added+"件、重複して省略 "+result.skipped+"件。元のブラウザ内データは変更していません。","ok");
+ }catch(e){$("upload").disabled=false;err(e);}
 };
 pending();
 const saved=localStorage.getItem(confKey);

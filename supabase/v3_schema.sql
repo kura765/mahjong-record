@@ -283,7 +283,7 @@ end;$$;
 -- Requires exact current version, room ownership, and a deliberate supported transition.
 create or replace function public.mahjong_transition_match(
  p_room_id uuid, p_old_key text, p_new_key text, p_payload jsonb, p_expected_version integer
-) returns integer language plpgsql security definer set search_path = '' as $
+) returns integer language plpgsql security definer set search_path = '' as $$
 declare
  v_old public.mahjong_room_matches%rowtype;
  v_new_version integer;
@@ -364,7 +364,7 @@ commit;
  (room_id,match_key,old_version,new_version,payload,changed_by)
  values(p_room_id,p_new_key,v_old.version,v_new_version,p_payload,auth.uid());
  return v_new_version;
-end;$;
+end;$$;
 
 revoke all on function public.mahjong_create_room(text),
  public.mahjong_create_invite(uuid),public.mahjong_accept_invite(text),

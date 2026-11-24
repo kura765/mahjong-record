@@ -22,7 +22,7 @@
 <p class="small">ローカルとクラウドの記録を同期基準と比較します。新しい端末にまだ記録がなければ、クラウドから初期復元できます。衝突や設定変更がある場合は取り込みません。</p>
 <button id="comparePull" class="secondary">差分を確認</button>
 <div id="pullReview" class="hidden"><p id="pullStatus"></p><button id="downloadLocalBeforePull" class="secondary">現在の試験入力をバックアップ</button>
-<label style="display:flex;align-items:center;gap:8px;font-weight:normal;font-size:13px"><input type="checkbox" id="pullBackupConfirmed" style="width:auto;margin:0">バックアップファイルを保存・確認しました</label>
+<label style="display:flex;align-items:center;gap:8px;font-weight:normal;font-size:13px"><input type="checkbox" id="pullBackupConfirmed" style="width:auto;margin:0"><span id="pullBackupLabel">バックアップファイルを保存・確認しました</span></label>
 <button id="applyPull" disabled>クラウドの変更を取り込む</button></div>
 </div>
 <div id="ownerActions">
@@ -388,6 +388,7 @@ $("comparePull").onclick=async()=>{
   pullPlan={...result,roomId,localRaw,remoteFingerprint:stableJson({records,meta:settings?.payload})};
   $("pullReview").classList.remove("hidden");
   $("downloadLocalBeforePull").disabled=result.initial;
+  $("pullBackupLabel").textContent=result.initial?"クラウドのバックアップを上の書き出しボタンから保存・確認しました":"現在の試験入力バックアップを保存・確認しました";
   $("pullBackupConfirmed").checked=false;
   $("pullStatus").textContent=(result.initial?"新しい端末へ初期復元します。 ":"")+"クラウドから取り込む変更："+result.pulled+"件。端末の未反映変更："+result.preserved+"件（維持）。";
   $("applyPull").disabled=true;

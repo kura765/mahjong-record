@@ -387,14 +387,17 @@ $("checkSyncOverview").onclick=async()=>{
 };
 function planGuidedSync(local,checkpoint,remoteMeta,records,roomId){
  const pull=comparePullData(local,checkpoint,remoteMeta,records);
+ // Refresh the local baseline before making any upload proposal. Older versions
+ // will intentionally fail buildUpdateCandidates, even when the pull is safe.
+ if(pull.pulled||pull.rebased)return {
+  incoming:pull.pulled,
+  outgoing:pendingChangeDetails(local,checkpoint),
+  rebase:!!pull.rebased,
+  status:"receive"
+ };
  const remote=new Map(records.map(x=>[x.match_key,x]));
  const candidates=buildUpdateCandidates(local,checkpoint,remote,roomId);
- return {
-  incoming:pull.pulled,
-  outgoing:candidates,
-  rebase:!!pull.rebased&&pull.pulled===0,
-  status:pull.pulled?"receive":candidates.length?"send":pull.rebased?"receive":"clean"
- };
+ return {incoming:0,outgoing:candidates,rebase:false,status:candidates.length?"send":"clean"};
 }
 $("guideSync").onclick=async()=>{
  const btn=$("guideSync");btn.disabled=true;

@@ -303,7 +303,7 @@ function comparePullData(local,checkpoint,remoteMeta,cloudRecords,preferCloudCon
  const remoteMap=new Map(cloudRecords.map(x=>[x.match_key,x]));
  const planned=new Map(local.items.map(x=>[x.key,x]));
  const newCheckpoint={schema:1,roomId:checkpoint.roomId,meta:checkpoint.meta,items:{}};
- let pulled=0,preserved=0,conflictsResolved=0;
+ let pulled=0,preserved=0,conflictsResolved=0,conflictLabels=[];
  const idOf=k=>String(k).slice(String(k).indexOf(":")+1);
  const allIds=new Map();
  for(const [key] of localMap){const id=idOf(key);if(allIds.has(id))throw Error("ローカルで半荘IDが重複: "+id);allIds.set(id,key);}
@@ -328,7 +328,10 @@ function comparePullData(local,checkpoint,remoteMeta,cloudRecords,preferCloudCon
   const sameAsCloud=localKey===serverKey&&stableJson(loc.payload)===stableJson(server.payload);
   if(localChanged&&serverChanged&&!sameAsCloud&&!preferCloudConflicts)
    throw Error("両方で変更された半荘があります: "+id+"。通常の差分比較では取り込めません。");
-  if(localChanged&&serverChanged&&!sameAsCloud)conflictsResolved++;
+  if(localChanged&&serverChanged&&!sameAsCloud){
+   conflictsResolved++;
+   conflictLabels.push(String(loc.payload?.match?.title||server.payload?.match?.title||id)+"（端末："+localKey.split(":")[0]+" / クラウド："+serverKey.split(":")[0]+"）");
+  }
   if(serverChanged&&!sameAsCloud){
    planned.delete(localKey);
    planned.set(serverKey,{key:serverKey,payload:server.payload});
@@ -349,7 +352,7 @@ function comparePullData(local,checkpoint,remoteMeta,cloudRecords,preferCloudCon
  const merged=reconstructBackup(local.meta,[...planned.values()].map(x=>({match_key:x.key,payload:x.payload})));
  // Re-run structural validation before writing, and guard against unexpected size.
  checkedBackup(merged);
- return {merged,checkpoint:newCheckpoint,pulled,preserved,conflictsResolved,rebased:stableJson(checkpoint.items)!==stableJson(newCheckpoint.items)};
+ return {merged,checkpoint:newCheckpoint,pulled,preserved,conflictsResolved,conflictLabels,rebased:stableJson(checkpoint.items)!==stableJson(newCheckpoint.items)};
 }
 function invalidatePull(){
  pullPlan=null;
@@ -398,7 +401,7 @@ async function compareCloudPull(preferCloudConflicts=false){
   $("downloadLocalBeforePull").disabled=result.initial;
   $("pullBackupLabel").textContent=result.initial?"クラウドのバックアップを上の書き出しボタンから保存・確認しました":"現在の試験入力バックアップを保存・確認しました";
   $("pullBackupConfirmed").checked=false;
-  $("pullStatus").textContent=(result.initial?"新しい端末へ初期復元します。 ":"")+"クラウドから取り込む変更："+result.pulled+"件。競合してクラウドを採用する半荘："+(result.conflictsResolved||0)+"件。端末の未反映変更："+result.preserved+"件（維持）。"+(result.rebased&&result.pulled===0?"同期基準だけ更新します。":"");
+  $("pullStatus").textContent=(result.initial?"新しい端末へ初期復元します。 ":"")+"クラウドから取り込む変更："+result.pulled+"件。競合してクラウドを採用する半荘："+(result.conflictsResolved||0)+"件。端末の未反映変更："+result.preserved+"件（維持）。"+(result.conflictLabels?.length?" 対象："+result.conflictLabels.join("、"):"")+(result.rebased&&result.pulled===0?"同期基準だけ更新します。":"");
   $("applyPull").disabled=true;
   notice("差分比較が完了しました。ローカルデータは変更していません。","ok");
  }catch(e){invalidatePull();err(e);}

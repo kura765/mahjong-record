@@ -19,8 +19,9 @@
 <h2>保存済みの半荘</h2><p id="metaStatus" class="small"></p><ul id="matches"></ul><button class="secondary" id="export" disabled>v2.22互換バックアップを書き出す</button>
 <div id="ownerPull" style="border:1px solid #dce4ee;border-radius:12px;padding:12px;margin:12px 0">
 <h2>クラウドから試験入力へ取り込む</h2>
-<p class="small">ローカルとクラウドの記録を同期基準と比較します。新しい端末にまだ記録がなければ、クラウドから初期復元できます。衝突や設定変更がある場合は取り込みません。</p>
+<p class="small">ローカルとクラウドを比較します。競合する半荘は通常取り込みません。明示的に選択した場合のみ、競合した半荘に限りクラウドの記録を採用します。端末の元記録は事前にJSON保存してください。設定の不一致や未追跡のID重複は拒否します。</p>
 <button id="comparePull" class="secondary">差分を確認</button>
+<button id="comparePullCloudWins" class="secondary">競合した半荘はクラウド優先で比較</button>
 <div id="pullReview" class="hidden"><p id="pullStatus"></p><button id="downloadLocalBeforePull" class="secondary">現在の試験入力をバックアップ</button>
 <label style="display:flex;align-items:center;gap:8px;font-weight:normal;font-size:13px"><input type="checkbox" id="pullBackupConfirmed" style="width:auto;margin:0"><span id="pullBackupLabel">バックアップファイルを保存・確認しました</span></label>
 <button id="applyPull" disabled>クラウドの変更を取り込む</button></div>
@@ -293,7 +294,7 @@ setInterval(()=>{if(autoSyncEnabled)checkAutoSync();},15000);
 document.addEventListener("visibilitychange",()=>{
  if(document.visibilityState==="visible"&&autoSyncEnabled)checkAutoSync();
 });
-function comparePullData(local,checkpoint,remoteMeta,cloudRecords){
+function comparePullData(local,checkpoint,remoteMeta,cloudRecords,preferCloudConflicts=false){
  if(!checkpoint||checkpoint.schema!==1)throw Error("同期基準がありません。先にこの端末で初回取り込みしてください。");
  if(stableJson(local.meta)!==stableJson(checkpoint.meta)||stableJson(remoteMeta)!==stableJson(checkpoint.meta))
   throw Error("プレイヤーやルール設定が異なります。自動統合はできません。");
@@ -302,7 +303,7 @@ function comparePullData(local,checkpoint,remoteMeta,cloudRecords){
  const remoteMap=new Map(cloudRecords.map(x=>[x.match_key,x]));
  const planned=new Map(local.items.map(x=>[x.key,x]));
  const newCheckpoint={schema:1,roomId:checkpoint.roomId,meta:checkpoint.meta,items:{}};
- let pulled=0,preserved=0;
+ let pulled=0,preserved=0,conflictsResolved=0;
  const idOf=k=>String(k).slice(String(k).indexOf(":")+1);
  const allIds=new Map();
  for(const [key] of localMap){const id=idOf(key);if(allIds.has(id))throw Error("ローカルで半荘IDが重複: "+id);allIds.set(id,key);}
@@ -324,8 +325,11 @@ function comparePullData(local,checkpoint,remoteMeta,cloudRecords){
   if(!Number.isSafeInteger(server.version)||server.version<1)throw Error("クラウド版番号が不正: "+id);
   const localChanged=localKey!==oldKey||stableJson(loc.payload)!==stableJson(base.payload);
   const serverChanged=serverKey!==oldKey||server.version!==base.version||stableJson(server.payload)!==stableJson(base.payload);
-  if(localChanged&&serverChanged)throw Error("両方で変更された半荘があります: "+id+"。手動解決が必要です。");
-  if(serverChanged){
+  const sameAsCloud=localKey===serverKey&&stableJson(loc.payload)===stableJson(server.payload);
+  if(localChanged&&serverChanged&&!sameAsCloud&&!preferCloudConflicts)
+   throw Error("両方で変更された半荘があります: "+id+"。通常の差分比較では取り込めません。");
+  if(localChanged&&serverChanged&&!sameAsCloud)conflictsResolved++;
+  if(serverChanged&&!sameAsCloud){
    planned.delete(localKey);
    planned.set(serverKey,{key:serverKey,payload:server.payload});
    pulled++;
@@ -345,7 +349,7 @@ function comparePullData(local,checkpoint,remoteMeta,cloudRecords){
  const merged=reconstructBackup(local.meta,[...planned.values()].map(x=>({match_key:x.key,payload:x.payload})));
  // Re-run structural validation before writing, and guard against unexpected size.
  checkedBackup(merged);
- return {merged,checkpoint:newCheckpoint,pulled,preserved};
+ return {merged,checkpoint:newCheckpoint,pulled,preserved,conflictsResolved,rebased:stableJson(checkpoint.items)!==stableJson(newCheckpoint.items)};
 }
 function invalidatePull(){
  pullPlan=null;
@@ -353,7 +357,7 @@ function invalidatePull(){
  $("pullBackupConfirmed").checked=false;
  $("applyPull").disabled=true;
 }
-$("pullBackupConfirmed").onchange=()=>{$("applyPull").disabled=!pullPlan||!$("pullBackupConfirmed").checked||pullPlan.pulled===0;};
+$("pullBackupConfirmed").onchange=()=>{$("applyPull").disabled=!pullPlan||!$("pullBackupConfirmed").checked||pullPlan.pulled===0&&!pullPlan.rebased;};
 $("downloadLocalBeforePull").onclick=()=>{
  try{
   if(!pullPlan)throw Error("差分を再確認してください。");
@@ -361,7 +365,7 @@ $("downloadLocalBeforePull").onclick=()=>{
   filename(JSON.parse(pullPlan.localRaw),"mahjong-before-cloud-pull");
  }catch(e){err(e);}
 };
-$("comparePull").onclick=async()=>{
+async function compareCloudPull(preferCloudConflicts=false){
  try{
   invalidatePull();
   if(autoSyncEnabled)throw Error("先に自動反映を停止してください。");
@@ -377,7 +381,7 @@ $("comparePull").onclick=async()=>{
   if(currentRoom?.id!==roomId)throw Error("ルームが変わりました。");
   let result;
   if(local){
-   result=comparePullData(local,checkpoint,settings?.payload,(records||[]));
+   result=comparePullData(local,checkpoint,settings?.payload,(records||[]),preferCloudConflicts);
   }else{
    if(!settings?.payload)throw Error("クラウドにバックアップ設定がありません。");
    const merged=reconstructBackup(settings.payload,(records||[]).map(x=>({match_key:x.match_key,payload:x.payload})));
@@ -394,11 +398,13 @@ $("comparePull").onclick=async()=>{
   $("downloadLocalBeforePull").disabled=result.initial;
   $("pullBackupLabel").textContent=result.initial?"クラウドのバックアップを上の書き出しボタンから保存・確認しました":"現在の試験入力バックアップを保存・確認しました";
   $("pullBackupConfirmed").checked=false;
-  $("pullStatus").textContent=(result.initial?"新しい端末へ初期復元します。 ":"")+"クラウドから取り込む変更："+result.pulled+"件。端末の未反映変更："+result.preserved+"件（維持）。";
+  $("pullStatus").textContent=(result.initial?"新しい端末へ初期復元します。 ":"")+"クラウドから取り込む変更："+result.pulled+"件。競合してクラウドを採用する半荘："+(result.conflictsResolved||0)+"件。端末の未反映変更："+result.preserved+"件（維持）。"+(result.rebased&&result.pulled===0?"同期基準だけ更新します。":"");
   $("applyPull").disabled=true;
   notice("差分比較が完了しました。ローカルデータは変更していません。","ok");
  }catch(e){invalidatePull();err(e);}
-};
+}
+$("comparePull").onclick=()=>compareCloudPull(false);
+$("comparePullCloudWins").onclick=()=>compareCloudPull(true);
 $("applyPull").onclick=async()=>{
  try{
   const plan=pullPlan;
@@ -411,7 +417,10 @@ $("applyPull").onclick=async()=>{
   if(metaError)throw metaError;
   if(stableJson({records,meta:settings?.payload})!==plan.remoteFingerprint)
    throw Error("確認後にクラウドが変更されました。再比較してください。");
-  if(!confirm("クラウドの変更 "+plan.pulled+"件を試験入力へ取り込みます。事前のバックアップを確認しましたか？"))return;
+  const prompt=(plan.conflictsResolved
+   ?"【競合解決】"+plan.conflictsResolved+"半荘の端末側変更をクラウド側の記録で置き換えます。端末側だけの記録は事前に保存したJSONで保管してください。\n"
+   :"")+"クラウドの変更 "+plan.pulled+"件を試験入力へ取り込み、同期基準を更新します。事前のバックアップを確認しましたか？";
+  if(!confirm(prompt))return;
   if(!currentRoom||currentRoom.id!==plan.roomId||autoSyncEnabled||localStorage.getItem("mahjongV3Trial")!==plan.localRaw)
    throw Error("確認中に記録か対象ルームが変わりました。最初から比較してください。");
   // Stage recovery first; never overwrite original v2.22 keys.

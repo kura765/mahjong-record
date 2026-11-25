@@ -80,6 +80,14 @@ test('Trial embeds cloud controls with a safe refresh after a cloud pull',()=>{
  assert.match(html,/event\.origin!==location\.origin/);
  assert.match(html,/stopAutoSync\("入力画面に戻ったため/);
 });
+test('Read-only sync overview is exposed without creating a new write path',()=>{
+ assert.match(html,/id="checkSyncOverview"/);
+ assert.match(html,/id="syncOverviewTitle"/);
+ assert.match(script,/function countLocalChanges\(/);
+ assert.match(script,/setOverview\("ok","閲覧専用"/);
+ assert.match(script,/comparePullData\(local,checkpoint,resultSettings\.data\?\.payload/);
+ assert.match(script,/button\.disabled=true/);
+});
 test('Complete backup validates without modifying source',()=>{
  const data=fixture({completed:[freshMatch('m1')]});
  const saved=JSON.stringify(data),x=checkedBackup(data);

@@ -1,7 +1,7 @@
 <!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>麻雀対局記録サイト v3.0 | クラウド試験版</title>
-<style>:root{font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif;background:#f5f7fa;color:#162335}*{box-sizing:border-box}body{margin:0}main{max-width:810px;margin:auto;padding:18px 14px 90px}h1{font-size:24px}h2{font-size:18px;margin-top:0}.card{background:white;border:1px solid #dce4ee;border-radius:16px;padding:18px;margin:15px 0}p,li{line-height:1.65}.small{font-size:13px;color:#667085}input,button{font:inherit}input{display:block;width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px;margin:7px 0 13px}button{background:#2563eb;color:white;padding:12px 16px;border:0;border-radius:10px;font-weight:700;cursor:pointer;margin:4px 4px 4px 0}button:disabled{background:#aab4c5;cursor:not-allowed}.secondary{background:#e8f0ff;color:#1d4ed8}.warn{color:#a65b00}.error{color:#b42318}.ok{color:#0e7543}.hidden{display:none!important}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f5f9;border-radius:10px;padding:12px}select{font:inherit;max-width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px}label{font-weight:700}a{color:#2456c2}#message{position:sticky;top:0;background:#eff6ff;padding:10px;border:1px solid #bbd2f9;border-radius:10px;z-index:2;overflow-wrap:anywhere}#message:empty{display:none}</style></head>
-<body><main><a href="../index.html">← 現行 v2.22 へ戻る</a><h1>麻雀対局記録サイト v3.0</h1>
-<p class="small">開発用Supabase接続済みのクラウド試験版 — ルーム・閲覧共有・半荘スナップショットの検証用。現行の対局入力画面とは未統合です。</p><p id="message" role="status" aria-live="polite"></p>
+<style>:root{font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif;background:#f5f7fa;color:#162335}*{box-sizing:border-box}body{margin:0}main{max-width:810px;margin:auto;padding:18px 14px 90px}h1{font-size:24px}h2{font-size:18px;margin-top:0}.card{background:white;border:1px solid #dce4ee;border-radius:16px;padding:18px;margin:15px 0}p,li{line-height:1.65}.small{font-size:13px;color:#667085}input,button{font:inherit}input{display:block;width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px;margin:7px 0 13px}button{background:#2563eb;color:white;padding:12px 16px;border:0;border-radius:10px;font-weight:700;cursor:pointer;margin:4px 4px 4px 0}button:disabled{background:#aab4c5;cursor:not-allowed}.secondary{background:#e8f0ff;color:#1d4ed8}.warn{color:#a65b00}.error{color:#b42318}.ok{color:#0e7543}.hidden{display:none!important}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f5f9;border-radius:10px;padding:12px}select{font:inherit;max-width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px}label{font-weight:700}a{color:#2456c2}#message{position:sticky;top:0;background:#eff6ff;padding:10px;border:1px solid #bbd2f9;border-radius:10px;z-index:2;overflow-wrap:anywhere}#message:empty{display:none}html.embedded main{padding:8px 7px 20px}html.embedded main>.cloud-back,html.embedded main>.cloud-heading,html.embedded main>.cloud-intro{display:none}html.embedded .card{padding:12px;margin:10px 0}html.embedded button{font-size:14px;padding:10px}html.embedded h2{font-size:16px}</style></head>
+<body><main><a class="cloud-back" href="../index.html">← 現行 v2.22 へ戻る</a><h1 class="cloud-heading">麻雀対局記録サイト v3.0</h1>
+<p class="small cloud-intro">開発用Supabase接続済みのクラウド試験版です。v3.0試験入力と同じ保存領域を使い、変更の確認と取り込みができます。</p><p id="message" role="status" aria-live="polite"></p>
 <section class="card" id="setup"><h2>1. Supabase 接続</h2>
 <p class="small">開発用Supabaseプロジェクトが設定されています。接続後はメールログインを行ってください。別のSupabaseを使う場合のみ設定を変更してください。<strong>secret / service_role key は絶対に入力しないでください。</strong>接続情報はこのブラウザにのみ保存されます。</p>
 <label for="url">Project URL</label><input id="url" placeholder="https://example.supabase.co" autocomplete="off">
@@ -52,6 +52,9 @@
 </section><section class="card"><h2>安全性について</h2><p class="small">招待リンクは参加権限を持つ秘密情報です。公開しないでください。参加にはメール認証が必要です。ルーム作成者のみ半荘を書き込めます。参加者は閲覧専用です。この試験版では複数人の同時編集・自動同期を提供しません。</p>
 <p class="small"><a href="migration-check.html">移行前チェック</a>　/　<a href="import-preview.html">ローカル統合プレビュー</a></p></section>
 </main><script type="module">
+if(new URLSearchParams(location.search).get("embedded")==="1"){
+ document.documentElement.classList.add("embedded");
+}
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const $=id=>document.getElementById(id);
 const confKey="mahjong-v3-public-supabase-config";
@@ -213,6 +216,10 @@ function saveCheckpoint(roomId,checked,cloudRecords){
  }
  localStorage.setItem(checkpointKey(roomId),JSON.stringify(checkpoint));
 }
+window.addEventListener("message",event=>{
+ if(event.origin!==location.origin||event.source!==window.parent)return;
+ if(event.data?.type==="mahjong-v3-stop-auto")stopAutoSync("入力画面に戻ったため自動反映を停止しました。");
+});
 function stopAutoSync(message="停止中（クラウドに自動送信しません）"){
  autoSyncEnabled=false;autoSyncRoomId=null;
  $("autoSyncToggle").textContent="自動反映を開始";

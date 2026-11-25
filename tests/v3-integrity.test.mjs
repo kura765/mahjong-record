@@ -70,6 +70,16 @@ test('Trial app parses and uses a separate storage key',()=>{
  assert.match(production,/const KEY='mahjongPrototypeV1'/);
  assert.doesNotMatch(trial,/const KEY='mahjongPrototypeV1'/);
 });
+test('Trial embeds cloud controls with a safe refresh after a cloud pull',()=>{
+ assert.match(trial,/data-page="sync"/);
+ assert.match(trial,/id="cloudFrame"/);
+ assert.match(trial,/cloud\.html\?embedded=1/);
+ assert.match(trial,/event\.key==='mahjongV3Trial'/);
+ assert.match(trial,/window\.location\.reload\(\)/);
+ assert.match(trial,/mahjong-v3-stop-auto/);
+ assert.match(html,/event\.origin!==location\.origin/);
+ assert.match(html,/stopAutoSync\("入力画面に戻ったため/);
+});
 test('Complete backup validates without modifying source',()=>{
  const data=fixture({completed:[freshMatch('m1')]});
  const saved=JSON.stringify(data),x=checkedBackup(data);

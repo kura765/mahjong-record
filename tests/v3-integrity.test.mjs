@@ -22,6 +22,8 @@ function extract(start,end){
 const stableCode=extract('function stableJson(', 'function stopAutoSync(');
 const candidateCode=extract('function originalMatchId(', '$("scanUpdates").onclick');
 const pullCode=extract('function comparePullData(', 'function invalidatePull(');
+const guidedCode=extract('function planGuidedSync(', '$("guideSync").onclick');
+const pendingCode=extract('const matchStateLabel=', 'function countLocalChanges(');
 const validateCode=extract('function checkedBackup(', 'function prepareImport(');
 const restoreCode=extract('function reconstructBackup(', '$("export").onclick');
 const mocks={
@@ -29,12 +31,12 @@ const mocks={
  Blob: class Blob { constructor(items){this.size=Buffer.byteLength(items.join(''));} }
 };
 const evaluated=vm.runInNewContext(
- stableCode+candidateCode+validateCode+restoreCode+pullCode+
- '\n({stableJson,buildUpdateCandidates,checkedBackup,reconstructBackup,comparePullData})',
+ stableCode+candidateCode+validateCode+restoreCode+pullCode+pendingCode+guidedCode+
+ '\n({stableJson,buildUpdateCandidates,checkedBackup,reconstructBackup,comparePullData,planGuidedSync})',
  mocks,
  {timeout:1000}
 );
-const {stableJson,buildUpdateCandidates,checkedBackup,reconstructBackup,comparePullData}=evaluated;
+const {stableJson,buildUpdateCandidates,checkedBackup,reconstructBackup,comparePullData,planGuidedSync}=evaluated;
 const reg=['a','b','c','d'].map(id=>({id,name:id.toUpperCase(),deleted:false}));
 const freshMatch=(id,round=0)=>({
  id,names:['A','B','C','D'],playerIds:['a','b','c','d'],
@@ -112,6 +114,33 @@ test('Upload candidates display readable match names instead of raw ID keys',()=
  assert.match(script,/new Option\(describeChange\(x\.item/);
  assert.match(script,/showUpdateTargetDetails\(\)/);
  assert.match(script,/document\.createTextNode\(row\.description\)/);
+});
+test('Guided sync previews outgoing, incoming and clean cases without writing',()=>{
+ const base=record('active','m1',1),local=record('active','m1',2),remote=record('active','m1',3);
+ const outgoing=planGuidedSync(checked([local]),checkpoint(base),meta,[snapshot(base)],'room1');
+ assert.equal(outgoing.status,'send');
+ assert.equal(outgoing.outgoing.length,1);
+ assert.equal(outgoing.incoming,0);
+ const incoming=planGuidedSync(checked([base]),checkpoint(base),meta,[snapshot(remote,2)],'room1');
+ assert.equal(incoming.status,'receive');
+ assert.equal(incoming.incoming,1);
+ assert.equal(incoming.outgoing.length,0);
+ const clean=planGuidedSync(checked([base]),checkpoint(base),meta,[snapshot(base)],'room1');
+ assert.equal(clean.status,'clean');
+ assert.equal(clean.incoming,0);
+ assert.equal(clean.outgoing.length,0);
+});
+test('Guided sync rejects a conflicting concurrent change',()=>{
+ const base=record('active','m1',1),local=record('active','m1',2),server=record('active','m1',3);
+ rejects(()=>planGuidedSync(checked([local]),checkpoint(base),meta,[snapshot(server,2)],'room1'),/両方で変更/);
+});
+test('Guided sync never offers uploads before remote changes are retrieved',()=>{
+ const base=record('active','m1',1),local=record('completed','m2',1),server=record('active','m1',2);
+ const result=planGuidedSync(checked([base,local]),checkpoint(base),meta,[snapshot(server,2)],'room1');
+ assert.equal(result.status,'receive');
+ assert.equal(result.incoming,1);
+ assert.equal(result.outgoing.length,1);
+ assert.match(script,/id\=\"guideSync\"|\$\("guideSync"\)/);
 });
 test('Complete backup validates without modifying source',()=>{
  const data=fixture({completed:[freshMatch('m1')]});

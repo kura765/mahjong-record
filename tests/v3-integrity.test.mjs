@@ -10,7 +10,7 @@ const root=path.resolve(import.meta.dirname,'..');
 const html=readFileSync(path.join(root,'v3/cloud.html'),'utf8');
 const trial=readFileSync(path.join(root,'v3/play.html'),'utf8');
 const production=readFileSync(path.join(root,'index.html'),'utf8');
-const sql=readFileSync(path.join(root,'supabase/v3_schema.sql'),'utf8');
+const sql=readFileSync(path.join(root,'supabase/v3_isolated_schema.sql'),'utf8');
 const script=html.split('<script type="module">')[1]?.split('</script>')[0];
 assert.ok(script,'cloud module missing');
 
@@ -148,9 +148,9 @@ test('SQL integrity: single transaction, balanced functions, RLS and versioning'
  const delimiters=(sql.match(/\$\$/g)||[]).length;
  assert.equal(delimiters,functions*2);
  assert.equal((sql.match(/^commit;$/gm)||[]).length,1);
- for(const table of ['mahjong_rooms','mahjong_room_members','mahjong_room_matches','mahjong_room_backup_meta','mahjong_room_match_history','mahjong_room_invites'])
+ for(const table of ['mahjong_v3_rooms','mahjong_v3_room_members','mahjong_v3_room_matches','mahjong_v3_room_backup_meta','mahjong_v3_room_match_history','mahjong_v3_room_invites'])
   assert.ok(sql.includes('alter table public.'+table+' enable row level security;'));
- assert.match(sql,/mahjong_transition_match/);
+ assert.match(sql,/mahjong_v3_transition_match/);
  assert.match(sql,/Version conflict/);
  assert.match(sql,/pg_advisory_xact_lock/);
 });

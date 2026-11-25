@@ -1,9 +1,9 @@
 <!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>麻雀対局記録サイト v3.0 | クラウド試験版</title>
 <style>:root{font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif;background:#f5f7fa;color:#162335}*{box-sizing:border-box}body{margin:0}main{max-width:810px;margin:auto;padding:18px 14px 90px}h1{font-size:24px}h2{font-size:18px;margin-top:0}.card{background:white;border:1px solid #dce4ee;border-radius:16px;padding:18px;margin:15px 0}p,li{line-height:1.65}.small{font-size:13px;color:#667085}input,button{font:inherit}input{display:block;width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px;margin:7px 0 13px}button{background:#2563eb;color:white;padding:12px 16px;border:0;border-radius:10px;font-weight:700;cursor:pointer;margin:4px 4px 4px 0}button:disabled{background:#aab4c5;cursor:not-allowed}.secondary{background:#e8f0ff;color:#1d4ed8}.warn{color:#a65b00}.error{color:#b42318}.ok{color:#0e7543}.hidden{display:none!important}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f5f9;border-radius:10px;padding:12px}select{font:inherit;max-width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px}label{font-weight:700}a{color:#2456c2}#message{position:sticky;top:0;background:#eff6ff;padding:10px;border:1px solid #bbd2f9;border-radius:10px;z-index:2;overflow-wrap:anywhere}#message:empty{display:none}</style></head>
 <body><main><a href="../index.html">← 現行 v2.22 へ戻る</a><h1>麻雀対局記録サイト v3.0</h1>
-<p class="small">クラウド試験版 — ルーム・閲覧共有・半荘スナップショットの検証用。現行の対局入力画面とは未統合です。</p><p id="message" role="status" aria-live="polite"></p>
+<p class="small">開発用Supabase接続済みのクラウド試験版 — ルーム・閲覧共有・半荘スナップショットの検証用。現行の対局入力画面とは未統合です。</p><p id="message" role="status" aria-live="polite"></p>
 <section class="card" id="setup"><h2>1. Supabase 接続</h2>
-<p class="small">Supabase の Project URL と Publishable / anon key を入力してください。<strong>secret / service_role key は絶対に入力しないでください。</strong>接続情報はこのブラウザにのみ保存されます。</p>
+<p class="small">開発用Supabaseプロジェクトが設定されています。接続後はメールログインを行ってください。別のSupabaseを使う場合のみ設定を変更してください。<strong>secret / service_role key は絶対に入力しないでください。</strong>接続情報はこのブラウザにのみ保存されます。</p>
 <label for="url">Project URL</label><input id="url" placeholder="https://example.supabase.co" autocomplete="off">
 <label for="key">Publishable / anon key</label><input id="key" placeholder="sb_publishable_... または anon JWT" autocomplete="off">
 <button id="connect">接続</button><button class="secondary" id="forget">接続設定を消去</button>
@@ -54,14 +54,18 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const $=id=>document.getElementById(id);
 const confKey="mahjong-v3-public-supabase-config";
+const PROJECT_DEFAULT_URL="https://slwqyxkpruclsxiawvlu.supabase.co";
+const PROJECT_PUBLISHABLE_KEY="sb_publishable_El_tXWOUqeWlDXlHfgrFBA_TP4fwFii";
 let sb=null,me=null,currentRoom=null,rooms=[],snapshots=[],roomMeta=null,preparedImport=null,updateCandidates=[];
 let autoSyncEnabled=false,autoSyncBusy=false,autoSyncRoomId=null;
 let pullPlan=null;
 const notice=(msg,kind="")=>{$("message").textContent=msg;$("message").className=kind;};
 const err=e=>{notice(e?.message||String(e),"error");};
 const enc=o=>JSON.stringify(o);
-$("url").value=JSON.parse(localStorage.getItem(confKey)||"{}").url||"";
-$("key").value=JSON.parse(localStorage.getItem(confKey)||"{}").key||"";
+let storedConnection={};
+try{storedConnection=JSON.parse(localStorage.getItem(confKey)||"{}")||{};}catch(e){}
+$("url").value=storedConnection.url||PROJECT_DEFAULT_URL;
+$("key").value=storedConnection.key||PROJECT_PUBLISHABLE_KEY;
 function baseUrl(){
  const u=new URL(location.href);
  u.hash="";u.search="";return u.href;
@@ -119,10 +123,10 @@ $("login").onclick=async()=>{
 };
 $("logout").onclick=async()=>{try{stopAutoSync("ログアウトしたため停止しました。");const {error}=await sb.auth.signOut();if(error)throw error;me=null;await setSession();notice("ログアウトしました。");}catch(e){err(e);}};
 async function rpc(name,args){const {data,error}=await sb.rpc(name,args);if(error)throw error;return data;}
-$("create").onclick=async()=>{try{const id=await rpc("mahjong_create_room",{p_title:$("title").value.trim()});$("title").value="";await refreshRooms(id);notice("非公開ルームを作成しました。","ok");}catch(e){err(e);}};
-$("join").onclick=async()=>{try{const token=getInvite();if(!token)throw Error("有効な招待トークンがありません。");const room=await rpc("mahjong_accept_invite",{p_token:token});clearInvite();pending();await refreshRooms(room);notice("ルームに参加しました（閲覧専用）。","ok");}catch(e){err(e);}};
+$("create").onclick=async()=>{try{const id=await rpc("mahjong_v3_create_room",{p_title:$("title").value.trim()});$("title").value="";await refreshRooms(id);notice("非公開ルームを作成しました。","ok");}catch(e){err(e);}};
+$("join").onclick=async()=>{try{const token=getInvite();if(!token)throw Error("有効な招待トークンがありません。");const room=await rpc("mahjong_v3_accept_invite",{p_token:token});clearInvite();pending();await refreshRooms(room);notice("ルームに参加しました（閲覧専用）。","ok");}catch(e){err(e);}};
 async function refreshRooms(chosen=null){
- const {data,error}=await sb.from("mahjong_rooms").select("id,owner_id,title,created_at").order("created_at",{ascending:false});
+ const {data,error}=await sb.from("mahjong_v3_rooms").select("id,owner_id,title,created_at").order("created_at",{ascending:false});
  if(error)throw error;rooms=data||[];
  const options=[new Option("ルームを選択",""),...rooms.map(r=>new Option(r.title,r.id))];
  $("rooms").replaceChildren(...options);
@@ -139,9 +143,9 @@ async function selectRoom(id){
  $("invite").classList.toggle("hidden",!owner);$("ownerActions").classList.toggle("hidden",!owner);$("ownerPull").classList.toggle("hidden",!owner);
  $("roomInfo").textContent=currentRoom.title+" ／ "+(owner?"作成者（編集可能）":"参加者（閲覧専用）");
  $("inviteOutput").textContent="";
- const {data,error}=await sb.from("mahjong_room_matches").select("room_id,match_key,payload,version,updated_at").eq("room_id",id).order("updated_at",{ascending:false});
+ const {data,error}=await sb.from("mahjong_v3_room_matches").select("room_id,match_key,payload,version,updated_at").eq("room_id",id).order("updated_at",{ascending:false});
  if(error)throw error;snapshots=data||[];
- const {data:metaData,error:metaError}=await sb.from("mahjong_room_backup_meta").select("payload,version").eq("room_id",id).maybeSingle();
+ const {data:metaData,error:metaError}=await sb.from("mahjong_v3_room_backup_meta").select("payload,version").eq("room_id",id).maybeSingle();
  if(metaError)throw metaError;
  roomMeta=metaData?.payload||null;
  $("export").disabled=!roomMeta;
@@ -151,7 +155,7 @@ async function selectRoom(id){
 $("invite").onclick=async()=>{
  try{
   if(!currentRoom)throw Error("ルームを選択してください。");
-  const token=await rpc("mahjong_create_invite",{p_room_id:currentRoom.id});
+  const token=await rpc("mahjong_v3_create_invite",{p_room_id:currentRoom.id});
   const u=new URL(baseUrl());u.hash="invite="+token;
   $("inviteOutput").textContent="このリンクは24時間・1回限り有効です。必要な相手にだけ共有してください。";
   await navigator.clipboard.writeText(u.href).then(()=>notice("招待リンクをコピーしました。","ok")).catch(()=>{const t=document.createElement("textarea");t.value=u.href;t.readOnly=true;t.style.width="100%";$("inviteOutput").append(t);notice("招待リンクを下の欄からコピーしてください。");});
@@ -236,11 +240,11 @@ async function syncOneCandidate(candidate){
  if(!cp||stableJson(cp.meta)!==stableJson(latest.meta))
   throw Error("設定変更・同期基準の消失を検出しました。");
  const newVersion=candidate.oldKey
-  ? await rpc("mahjong_transition_match",{
+  ? await rpc("mahjong_v3_transition_match",{
      p_room_id:candidate.roomId,p_old_key:candidate.oldKey,p_new_key:candidate.item.key,
      p_payload:candidate.item.payload,p_expected_version:candidate.expected
    })
-  : await rpc("mahjong_save_match",{
+  : await rpc("mahjong_v3_save_match",{
      p_room_id:candidate.roomId,p_match_key:candidate.item.key,
      p_payload:candidate.item.payload,p_expected_version:candidate.expected
    });
@@ -263,7 +267,7 @@ async function checkAutoSync(){
   const checked=checkedBackup(JSON.parse(raw)),cp=loadCheckpoint(roomId);
   if(!cp||stableJson(checked.meta)!==stableJson(cp.meta))
    throw Error("同期基準がないか、プレイヤー・ルール設定が変わりました。");
-  const {data,error}=await sb.from("mahjong_room_matches").select("match_key,payload,version").eq("room_id",roomId);
+  const {data,error}=await sb.from("mahjong_v3_room_matches").select("match_key,payload,version").eq("room_id",roomId);
   if(error)throw error;
   if(!autoSyncEnabled||autoSyncRoomId!==roomId)return;
   const candidates=buildUpdateCandidates(checked,cp,new Map((data||[]).map(x=>[x.match_key,x])),roomId);
@@ -366,9 +370,9 @@ $("comparePull").onclick=async()=>{
   const checkpoint=loadCheckpoint(roomId);
   if(!localRaw&&checkpoint)throw Error("ローカル記録がなく同期基準だけ残っています。復元前に状況を確認してください。");
   const local=localRaw?checkedBackup(JSON.parse(localRaw)):null;
-  const {data:records,error}=await sb.from("mahjong_room_matches").select("match_key,payload,version").eq("room_id",roomId);
+  const {data:records,error}=await sb.from("mahjong_v3_room_matches").select("match_key,payload,version").eq("room_id",roomId);
   if(error)throw error;
-  const {data:settings,error:metaError}=await sb.from("mahjong_room_backup_meta").select("payload").eq("room_id",roomId).maybeSingle();
+  const {data:settings,error:metaError}=await sb.from("mahjong_v3_room_backup_meta").select("payload").eq("room_id",roomId).maybeSingle();
   if(metaError)throw metaError;
   if(currentRoom?.id!==roomId)throw Error("ルームが変わりました。");
   let result;
@@ -401,9 +405,9 @@ $("applyPull").onclick=async()=>{
   if(!plan||!$("pullBackupConfirmed").checked)throw Error("差分確認とバックアップ保存が必要です。");
   if(autoSyncEnabled||!currentRoom||currentRoom.id!==plan.roomId)throw Error("ルームが変わりました。");
   if(localStorage.getItem("mahjongV3Trial")!==plan.localRaw)throw Error("確認後にローカル記録が変わりました。再比較してください。");
-  const {data:records,error}=await sb.from("mahjong_room_matches").select("match_key,payload,version").eq("room_id",plan.roomId);
+  const {data:records,error}=await sb.from("mahjong_v3_room_matches").select("match_key,payload,version").eq("room_id",plan.roomId);
   if(error)throw error;
-  const {data:settings,error:metaError}=await sb.from("mahjong_room_backup_meta").select("payload").eq("room_id",plan.roomId).maybeSingle();
+  const {data:settings,error:metaError}=await sb.from("mahjong_v3_room_backup_meta").select("payload").eq("room_id",plan.roomId).maybeSingle();
   if(metaError)throw metaError;
   if(stableJson({records,meta:settings?.payload})!==plan.remoteFingerprint)
    throw Error("確認後にクラウドが変更されました。再比較してください。");
@@ -472,7 +476,7 @@ $("scanUpdates").onclick=async()=>{
   if(stableJson(checked.meta)!==stableJson(checkpoint.meta))
    throw Error("プレイヤーやルール等の設定が変更されています。半荘だけを更新できません。");
   const selectedRoomId=currentRoom.id;
-  const {data,error}=await sb.from("mahjong_room_matches").select("match_key,payload,version").eq("room_id",selectedRoomId);
+  const {data,error}=await sb.from("mahjong_v3_room_matches").select("match_key,payload,version").eq("room_id",selectedRoomId);
   if(error)throw error;
   if(currentRoom?.id!==selectedRoomId)throw Error("ルームが切り替わりました。");
   const remote=new Map((data||[]).map(x=>[x.match_key,x]));
@@ -590,7 +594,7 @@ $("upload").onclick=async()=>{
   $("upload").disabled=true;
   const syncRoomId=currentRoom.id;
   const preparedSource=preparedImport.source;
-  const result=await rpc("mahjong_import_matches",{p_room_id:syncRoomId,p_items:plan.items,p_meta:plan.meta});
+  const result=await rpc("mahjong_v3_import_matches",{p_room_id:syncRoomId,p_items:plan.items,p_meta:plan.meta});
   await selectRoom(syncRoomId);
   if(preparedSource==="v3.0試験入力（このブラウザ）"){
    try{saveCheckpoint(syncRoomId,plan,snapshots);}catch(e){notice("保存しましたが同期基準を作成できませんでした: "+e.message,"error");return;}
@@ -600,5 +604,6 @@ $("upload").onclick=async()=>{
 };
 pending();
 const saved=localStorage.getItem(confKey);
-if(saved){try{const c=JSON.parse(saved);if(c.url&&c.key){$("url").value=c.url;$("key").value=c.key;$("connect").click();}}catch(e){}}
+if(saved){try{const c=JSON.parse(saved);if(c.url&&c.key){$("url").value=c.url;$("key").value=c.key;}}catch(e){}}
+$("connect").click();
 </script></body></html>

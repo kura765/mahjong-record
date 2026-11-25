@@ -609,7 +609,13 @@ window.addEventListener('storage',event=>{
   window.location.reload();
  }
 });
-function showPage(p){if(p==='sync'&&!cloudFrameInitialized){cloudFrameInitialized=true;reloadCloudFrame();}document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===p));document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===p));if(p==='home')renderHome();if(p==='record')renderRecord();if(p==='history')renderHistory();if(p==='stats')renderStats();if(p==='settings'){renderPlayers();renderRuleSettings();refreshStorageDiagnostics();checkAppUpdate(false);document.getElementById('preventZoomSetting').checked=preventZoom;}window.scrollTo(0,0)}
+function showPage(p){
+ if(p!=='sync'&&cloudFrameInitialized){
+  const frame=document.getElementById('cloudFrame');
+  if(frame?.contentWindow)frame.contentWindow.postMessage({type:'mahjong-v3-stop-auto'},location.origin);
+ }
+ if(p==='sync'&&!cloudFrameInitialized){cloudFrameInitialized=true;reloadCloudFrame();}
+ document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===p));document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===p));if(p==='home')renderHome();if(p==='record')renderRecord();if(p==='history')renderHistory();if(p==='stats')renderStats();if(p==='settings'){renderPlayers();renderRuleSettings();refreshStorageDiagnostics();checkAppUpdate(false);document.getElementById('preventZoomSetting').checked=preventZoom;}window.scrollTo(0,0)}
 // Date-based default titles: YYYYMMDD_01, YYYYMMDD_02, ... .
 // Titles can always be edited, and the next available suffix is determined from saved records.
 let startTitleCustomized=false;

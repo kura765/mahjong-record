@@ -1,5 +1,5 @@
 <!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>麻雀対局記録サイト v3.0 | クラウド試験版</title>
-<style>:root{font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif;background:#f5f7fa;color:#162335}*{box-sizing:border-box}body{margin:0}main{max-width:810px;margin:auto;padding:18px 14px 90px}h1{font-size:24px}h2{font-size:18px;margin-top:0}.card{background:white;border:1px solid #dce4ee;border-radius:16px;padding:18px;margin:15px 0}p,li{line-height:1.65}.small{font-size:13px;color:#667085}input,button{font:inherit}input{display:block;width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px;margin:7px 0 13px}button{background:#2563eb;color:white;padding:12px 16px;border:0;border-radius:10px;font-weight:700;cursor:pointer;margin:4px 4px 4px 0}button:disabled{background:#aab4c5;cursor:not-allowed}.secondary{background:#e8f0ff;color:#1d4ed8}.warn{color:#a65b00}.error{color:#b42318}.ok{color:#0e7543}.hidden{display:none!important}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f5f9;border-radius:10px;padding:12px}select{font:inherit;max-width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px}label{font-weight:700}a{color:#2456c2}#message{position:sticky;top:0;background:#eff6ff;padding:10px;border:1px solid #bbd2f9;border-radius:10px;z-index:2;overflow-wrap:anywhere}#message:empty{display:none}html.embedded main{padding:8px 7px 20px}html.embedded main>.cloud-back,html.embedded main>.cloud-heading,html.embedded main>.cloud-intro{display:none}html.embedded .card{padding:12px;margin:10px 0}html.embedded button{font-size:14px;padding:10px}html.embedded h2{font-size:16px}.sync-overview{border:1px solid #cbd5e1;border-radius:12px;padding:12px;margin:12px 0;background:#f8fafc}.sync-overview strong{display:block;font-size:17px}.sync-overview[data-state="ok"]{border-color:#8acfa9}.sync-overview[data-state="conflict"]{border-color:#ed9595}.sync-overview[data-state="pending"]{border-color:#e2bf73}</style></head>
+<style>:root{font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif;background:#f5f7fa;color:#162335}*{box-sizing:border-box}body{margin:0}main{max-width:810px;margin:auto;padding:18px 14px 90px}h1{font-size:24px}h2{font-size:18px;margin-top:0}.card{background:white;border:1px solid #dce4ee;border-radius:16px;padding:18px;margin:15px 0}p,li{line-height:1.65}.small{font-size:13px;color:#667085}input,button{font:inherit}input{display:block;width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px;margin:7px 0 13px}button{background:#2563eb;color:white;padding:12px 16px;border:0;border-radius:10px;font-weight:700;cursor:pointer;margin:4px 4px 4px 0}button:disabled{background:#aab4c5;cursor:not-allowed}.secondary{background:#e8f0ff;color:#1d4ed8}.warn{color:#a65b00}.error{color:#b42318}.ok{color:#0e7543}.hidden{display:none!important}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f5f9;border-radius:10px;padding:12px}select{font:inherit;max-width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px}label{font-weight:700}a{color:#2456c2}#message{position:sticky;top:0;background:#eff6ff;padding:10px;border:1px solid #bbd2f9;border-radius:10px;z-index:2;overflow-wrap:anywhere}#message:empty{display:none}html.embedded main{padding:8px 7px 20px}html.embedded main>.cloud-back,html.embedded main>.cloud-heading,html.embedded main>.cloud-intro{display:none}html.embedded .card{padding:12px;margin:10px 0}html.embedded button{font-size:14px;padding:10px}html.embedded h2{font-size:16px}.sync-overview{border:1px solid #cbd5e1;border-radius:12px;padding:12px;margin:12px 0;background:#f8fafc}.sync-overview strong{display:block;font-size:17px}.sync-overview[data-state="ok"]{border-color:#8acfa9}.sync-overview[data-state="conflict"]{border-color:#ed9595}.sync-overview[data-state="pending"]{border-color:#e2bf73}.sync-change-list{margin:8px 0;padding:0;list-style:none}.sync-change-list li{padding:9px 10px;margin:6px 0;border-radius:9px;background:#fff;border:1px solid #e2e8f0;font-size:13px;line-height:1.55;overflow-wrap:anywhere}.sync-change-list li strong{display:block;font-size:13px;margin:0}</style></head>
 <body><main><a class="cloud-back" href="../index.html">← 現行 v2.22 へ戻る</a><h1 class="cloud-heading">麻雀対局記録サイト v3.0</h1>
 <p class="small cloud-intro">開発用Supabase接続済みのクラウド試験版です。v3.0試験入力と同じ保存領域を使い、変更の確認と取り込みができます。</p><p id="message" role="status" aria-live="polite"></p>
 <section class="card" id="setup"><h2>1. Supabase 接続</h2>
@@ -16,7 +16,7 @@
 <h2>参加できるルーム</h2><button class="secondary" id="refresh">一覧を更新</button><select id="rooms"><option value="">ルームを選択</option></select>
 <div id="roomDetails" class="hidden"><p id="roomInfo"></p><button id="invite">招待リンクを作成（24時間・1回限り）</button>
 <p id="inviteOutput" class="small"></p>
-<div id="syncOverview" class="sync-overview" role="status" aria-live="polite" data-state="unknown"><strong id="syncOverviewTitle">同期状況：未確認</strong><p id="syncOverviewDetails" class="small">確認しても記録は変更されません。</p><button id="checkSyncOverview" class="secondary">同期状況を確認</button></div><h2>保存済みの半荘</h2><p id="metaStatus" class="small"></p><ul id="matches"></ul><button class="secondary" id="export" disabled>v2.22互換バックアップを書き出す</button>
+<div id="syncOverview" class="sync-overview" role="status" aria-live="polite" data-state="unknown"><strong id="syncOverviewTitle">同期状況：未確認</strong><p id="syncOverviewDetails" class="small">確認しても記録は変更されません。</p><ul id="syncChangeList" class="sync-change-list" aria-label="未送信の半荘一覧"></ul><button id="checkSyncOverview" class="secondary">同期状況を確認</button></div><h2>保存済みの半荘</h2><p id="metaStatus" class="small"></p><ul id="matches"></ul><button class="secondary" id="export" disabled>v2.22互換バックアップを書き出す</button>
 <div id="ownerPull" style="border:1px solid #dce4ee;border-radius:12px;padding:12px;margin:12px 0">
 <h2>クラウドから試験入力へ取り込む</h2>
 <p class="small">ローカルとクラウドを比較します。競合する半荘は通常取り込みません。明示的に選択した場合のみ、競合した半荘に限りクラウドの記録を採用します。端末の元記録は事前にJSON保存してください。設定の不一致や未追跡のID重複は拒否します。</p>
@@ -36,7 +36,7 @@
 <button id="autoSyncToggle" class="secondary">自動反映を開始</button>
 <p id="autoSyncStatus" class="small" role="status" aria-live="polite">停止中（クラウドに自動送信しません）</p>
 </div>
-<div id="updateReview" class="hidden"><p id="updateStatus"></p><select id="updateTarget"></select><button id="applyUpdate">選択した半荘を反映する</button></div>
+<div id="updateReview" class="hidden"><p id="updateStatus"></p><label for="updateTarget">クラウドへ反映する半荘</label><select id="updateTarget"></select><p id="updateTargetDetails" class="small" aria-live="polite"></p><button id="applyUpdate">選択した半荘を反映する</button></div>
 <h2>バックアップの取り込み</h2>
 <p class="small">v2.22と同じサイトのドメイン・同じブラウザに保存された記録を読み取るか、バックアップJSONを選べます。NetlifyとGitHub Pagesなど、ドメインが違う場合はJSONを選んでください。<strong>どちらも確認するまで送信しません。</strong>ローカルの記録は変更されません。</p>
 <button id="scanLocal" class="secondary">同じドメインのv2.22記録を確認</button>
@@ -65,7 +65,12 @@ let autoSyncEnabled=false,autoSyncBusy=false,autoSyncRoomId=null;
 let pullPlan=null;
 const notice=(msg,kind="")=>{$("message").textContent=msg;$("message").className=kind;};
 const err=e=>{notice(e?.message||String(e),"error");};
-function setOverview(state,title,details){$("syncOverview").dataset.state=state;$("syncOverviewTitle").textContent=title;$("syncOverviewDetails").textContent=details;}
+function setOverview(state,title,details){
+ $("syncOverview").dataset.state=state;
+ $("syncOverviewTitle").textContent=title;
+ $("syncOverviewDetails").textContent=details;
+ if(state!=="pending")$("syncChangeList").replaceChildren();
+}
 const enc=o=>JSON.stringify(o);
 let storedConnection={};
 try{storedConnection=JSON.parse(localStorage.getItem(confKey)||"{}")||{};}catch(e){}
@@ -303,6 +308,36 @@ setInterval(()=>{if(autoSyncEnabled)checkAutoSync();},15000);
 document.addEventListener("visibilitychange",()=>{
  if(document.visibilityState==="visible"&&autoSyncEnabled)checkAutoSync();
 });
+const matchStateLabel=kind=>({active:"進行中",suspended:"中断",completed:"完了"}[kind]||"不明");
+function describeChange(item,old){
+ const m=item.payload?.match||{};
+ const title=String(m.title||"半荘ID："+originalMatchId(item.key));
+ const prior=old?.payload?.match||{};
+ const priorKind=old?.payload?.kind;
+ const nextKind=item.payload?.kind;
+ const kind=!old?"新規追加":priorKind!==nextKind?"状態変更":"内容更新";
+ const oldHands=Array.isArray(prior.hands)?prior.hands.length:0;
+ const newHands=Array.isArray(m.hands)?m.hands.length:0;
+ const diff=newHands-oldHands;
+ const stateChange=old&&priorKind!==nextKind?matchStateLabel(priorKind)+" → "+matchStateLabel(nextKind):matchStateLabel(nextKind);
+ const handChange=!old?newHands+"局":diff>0?"+"+diff+"局":diff<0?diff+"局":"局数変更なし";
+ return {title,kind,description:stateChange+" ／ 記録："+newHands+"局（"+handChange+"）",id:originalMatchId(item.key)};
+}
+function pendingChangeDetails(local,checkpoint){
+ const baselines=new Map(Object.entries(checkpoint.items).map(([key,val])=>[originalMatchId(key),{key,...val}]));
+ return local.items.flatMap(item=>{
+  const old=baselines.get(originalMatchId(item.key));
+  return !old||old.key!==item.key||stableJson(old.payload)!==stableJson(item.payload)?[describeChange(item,old)]:[];
+ });
+}
+function renderChangeDetails(rows){
+ const list=$("syncChangeList");list.replaceChildren();
+ for(const row of rows){
+  const li=document.createElement("li"),title=document.createElement("strong");
+  title.textContent=row.title+"： "+row.kind;
+  li.append(title,document.createTextNode(row.description));list.append(li);
+ }
+}
 function countLocalChanges(local,checkpoint){
  const baselines=new Map(Object.entries(checkpoint.items).map(([key,payload])=>[originalMatchId(key),{key,payload}]));
  return local.items.filter(item=>{
@@ -329,7 +364,8 @@ $("checkSyncOverview").onclick=async()=>{
   if(resultSettings.error)throw resultSettings.error;
   if(currentRoom?.id!==roomId)throw Error("確認中にルームが変わりました。");
   const result=comparePullData(local,checkpoint,resultSettings.data?.payload,resultRows.data||[]);
-  const pending=countLocalChanges(local,checkpoint),incoming=result.pulled;
+  const changes=pendingChangeDetails(local,checkpoint),pending=changes.length,incoming=result.pulled;
+  renderChangeDetails(changes);
   const detail="端末の未送信変更："+pending+"件 ／ クラウドから取得する変更："+incoming+"件。";
   if(pending&&incoming)setOverview("pending","両方に未反映の変更あり",detail+" 通常の差分確認で安全性を確認してください。");
   else if(pending)setOverview("pending","端末に未送信の変更あり",detail+" 「更新候補を調べる」で確認できます。");
@@ -337,6 +373,7 @@ $("checkSyncOverview").onclick=async()=>{
   else if(result.rebased)setOverview("pending","同期基準の更新が必要",detail+" 「差分を確認」から更新してください。");
   else setOverview("ok","最新：同期済み",detail+" 変更はありません。");
  }catch(e){
+  $("syncChangeList").replaceChildren();
   const message=e?.message||String(e);
   setOverview("conflict",/両方で変更|重複|同期基準|設定|削除|未追跡/.test(message)?"競合・確認が必要":"同期状況の確認に失敗",message+" 記録は変更されていません。");
  }finally{button.disabled=false;}
@@ -542,11 +579,22 @@ $("scanUpdates").onclick=async()=>{
   updateCandidates=buildUpdateCandidates(checked,checkpoint,remote,selectedRoomId);
   $("updateReview").classList.remove("hidden");
   $("updateStatus").textContent=updateCandidates.length+"件の反映候補があります。1件ずつ確認して反映できます。";
-  $("updateTarget").replaceChildren(...updateCandidates.map((x,i)=>new Option(x.kind+"："+x.item.key,i)));
+  $("updateTarget").replaceChildren(...updateCandidates.map((x,i)=>new Option(describeChange(x.item,x.oldKey?checkpoint.items[x.oldKey]:checkpoint.items[x.item.key]).title+"： "+x.kind,i)));
   $("applyUpdate").disabled=updateCandidates.length===0;
+  showUpdateTargetDetails();
   notice("同期候補の比較が完了しました。クラウドへの変更はまだありません。","ok");
  }catch(e){updateCandidates=[];$("updateReview").classList.add("hidden");err(e);}
 };
+function showUpdateTargetDetails(){
+ const candidate=updateCandidates[Number($("updateTarget").value)];
+ const target=$("updateTargetDetails");
+ if(!candidate){target.textContent="反映できる半荘はありません。";return;}
+ const cp=loadCheckpoint(candidate.roomId);
+ const previous=cp?.items?.[candidate.oldKey||candidate.item.key]||null;
+ const info=describeChange(candidate.item,previous);
+ target.textContent=info.description+"。選択した半荘のみ保存します。";
+}
+$("updateTarget").onchange=showUpdateTargetDetails;
 $("applyUpdate").onclick=async()=>{
  try{
   const candidate=updateCandidates[Number($("updateTarget").value)];

@@ -25,6 +25,7 @@ const pullCode=extract('function comparePullData(', 'function invalidatePull(');
 const validateCode=extract('function checkedBackup(', 'function prepareImport(');
 const restoreCode=extract('function reconstructBackup(', '$("export").onclick');
 const mocks={
+ window:{addEventListener(){}},
  Blob: class Blob { constructor(items){this.size=Buffer.byteLength(items.join(''));} }
 };
 const evaluated=vm.runInNewContext(

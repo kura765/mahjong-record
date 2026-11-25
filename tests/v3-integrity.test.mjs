@@ -135,6 +135,35 @@ test('Cloud pull refuses concurrent local and remote edits',()=>{
  const a=record('active','m1'),b=record('active','m1',1),c=record('active','m1',2);
  rejects(()=>comparePullData(checked([b]),checkpoint(a),meta,[snapshot(c,2)]),/両方/);
 });
+test('Cloud-wins recovery is opt-in and preserves unrelated local edits',()=>{
+ const base=record('suspended','m1',1),server=record('active','m1',2),local=record('completed','m1',2);
+ const unrelated=record('completed','m2',3);
+ const result=comparePullData(checked([local,unrelated]),checkpoint(base),meta,[snapshot(server,2)]);
+ assert.equal(result.pulled,1);
+ assert.equal(result.conflictsResolved,1);
+ assert.equal(result.merged.active.hands.length,2);
+ assert.equal(result.merged.matches.length,1);
+ assert.equal(result.merged.matches[0].id,'m2');
+ assert.ok(result.rebased);
+ assert.ok(result.checkpoint.items['active:m1']);
+});
+test('Cloud-wins recovery still rejects metadata mismatch',()=>{
+ const base=record('active','m1'),local=record('active','m1',1),server=record('active','m1',2);
+ rejects(()=>comparePullData(checked([local]),checkpoint(base),{...meta,players:['wrong']},[snapshot(server,2)],true),/設定/);
+});
+test('Cloud-wins recovery refuses a new untracked duplicate',()=>{
+ const original=record('active','m1'),local=record('completed','m2',1),remote=record('suspended','m2',2);
+ rejects(()=>comparePullData(checked([original,local]),checkpoint(original),meta,[snapshot(original),snapshot(remote)],true),/未追跡/);
+});
+test('Identical local and cloud records can rebase stale checkpoint',()=>{
+ const a=record('suspended','m1',1),b=record('active','m1',2);
+ const result=comparePullData(checked([b]),checkpoint(a),meta,[snapshot(b,2)]);
+ assert.equal(result.pulled,0);
+ assert.equal(result.conflictsResolved,0);
+ assert.equal(result.preserved,0);
+ assert.equal(result.rebased,true);
+ assert.ok(result.checkpoint.items['active:m1']);
+});
 test('Cloud pull refuses conflicting metadata',()=>{
  const a=record('active','m1');
  rejects(()=>comparePullData(checked([a]),checkpoint(a),{...meta,players:['wrong']},[snapshot(a)]),/設定/);

@@ -333,7 +333,7 @@ function comparePullData(local,checkpoint,remoteMeta,cloudRecords,preferCloudCon
    planned.delete(localKey);
    planned.set(serverKey,{key:serverKey,payload:server.payload});
    pulled++;
-  }else if(localChanged)preserved++;
+  }else if(localChanged&&!serverChanged)preserved++;
   newCheckpoint.items[serverKey]={version:server.version,payload:server.payload};
  }
  // New remote records are safe only if their original ID does not already exist locally.

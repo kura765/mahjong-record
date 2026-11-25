@@ -88,6 +88,30 @@ test('Read-only sync overview is exposed without creating a new write path',()=>
  assert.match(script,/comparePullData\(local,checkpoint,resultSettings\.data\?\.payload/);
  assert.match(script,/button\.disabled=true/);
 });
+test('Pending match descriptions show readable names, states and changed hands',()=>{
+ const helpers=extract('const matchStateLabel=', 'function countLocalChanges(');
+ const {describeChange,pendingChangeDetails}=vm.runInNewContext(
+  stableCode+helpers+'\n({describeChange,pendingChangeDetails})',mocks,{timeout:1000});
+ const a=record('active','m1',1),b=record('completed','m1',2),fresh=record('suspended','m2',1);
+ b.payload.match.title='20261126_01';
+ fresh.payload.match.title='20261126_02';
+ const changes=pendingChangeDetails(checked([b,fresh]),checkpoint(a));
+ assert.equal(changes.length,2);
+ assert.equal(changes[0].title,'20261126_01');
+ assert.equal(changes[0].kind,'状態変更');
+ assert.match(changes[0].description,/進行中 → 完了/);
+ assert.match(changes[0].description,/\+1局/);
+ assert.equal(changes[1].kind,'新規追加');
+ assert.match(changes[1].description,/中断/);
+ assert.equal(describeChange(a,{payload:a.payload}).kind,'内容更新');
+});
+test('Upload candidates display readable match names instead of raw ID keys',()=>{
+ assert.match(html,/id="syncChangeList"/);
+ assert.match(html,/id="updateTargetDetails"/);
+ assert.match(script,/new Option\(describeChange\(x\.item/);
+ assert.match(script,/showUpdateTargetDetails\(\)/);
+ assert.match(script,/document\.createTextNode\(row\.description\)/);
+});
 test('Complete backup validates without modifying source',()=>{
  const data=fixture({completed:[freshMatch('m1')]});
  const saved=JSON.stringify(data),x=checkedBackup(data);

@@ -1,5 +1,5 @@
 <!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>麻雀対局記録サイト v3.0 | クラウド試験版</title>
-<style>:root{font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif;background:#f5f7fa;color:#162335}*{box-sizing:border-box}body{margin:0}main{max-width:810px;margin:auto;padding:18px 14px 90px}h1{font-size:24px}h2{font-size:18px;margin-top:0}.card{background:white;border:1px solid #dce4ee;border-radius:16px;padding:18px;margin:15px 0}p,li{line-height:1.65}.small{font-size:13px;color:#667085}input,button{font:inherit}input{display:block;width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px;margin:7px 0 13px}button{background:#2563eb;color:white;padding:12px 16px;border:0;border-radius:10px;font-weight:700;cursor:pointer;margin:4px 4px 4px 0}button:disabled{background:#aab4c5;cursor:not-allowed}.secondary{background:#e8f0ff;color:#1d4ed8}.warn{color:#a65b00}.error{color:#b42318}.ok{color:#0e7543}.hidden{display:none!important}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f5f9;border-radius:10px;padding:12px}select{font:inherit;max-width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px}label{font-weight:700}a{color:#2456c2}#message{position:sticky;top:0;background:#eff6ff;padding:10px;border:1px solid #bbd2f9;border-radius:10px;z-index:2;overflow-wrap:anywhere}#message:empty{display:none}html.embedded main{padding:8px 7px 20px}html.embedded main>.cloud-back,html.embedded main>.cloud-heading,html.embedded main>.cloud-intro{display:none}html.embedded .card{padding:12px;margin:10px 0}html.embedded button{font-size:14px;padding:10px}html.embedded h2{font-size:16px}.sync-overview{border:1px solid #cbd5e1;border-radius:12px;padding:12px;margin:12px 0;background:#f8fafc}.sync-overview strong{display:block;font-size:17px}.sync-overview[data-state="ok"]{border-color:#8acfa9}.sync-overview[data-state="conflict"]{border-color:#ed9595}.sync-overview[data-state="pending"]{border-color:#e2bf73}.sync-change-list{margin:8px 0;padding:0;list-style:none}.sync-change-list li{padding:9px 10px;margin:6px 0;border-radius:9px;background:#fff;border:1px solid #e2e8f0;font-size:13px;line-height:1.55;overflow-wrap:anywhere}.sync-change-list li strong{display:block;font-size:13px;margin:0}</style></head>
+<style>:root{font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif;background:#f5f7fa;color:#162335}*{box-sizing:border-box}body{margin:0}main{max-width:810px;margin:auto;padding:18px 14px 90px}h1{font-size:24px}h2{font-size:18px;margin-top:0}.card{background:white;border:1px solid #dce4ee;border-radius:16px;padding:18px;margin:15px 0}p,li{line-height:1.65}.small{font-size:13px;color:#667085}input,button{font:inherit}input{display:block;width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px;margin:7px 0 13px}button{background:#2563eb;color:white;padding:12px 16px;border:0;border-radius:10px;font-weight:700;cursor:pointer;margin:4px 4px 4px 0}button:disabled{background:#aab4c5;cursor:not-allowed}.secondary{background:#e8f0ff;color:#1d4ed8}.warn{color:#a65b00}.error{color:#b42318}.ok{color:#0e7543}.hidden{display:none!important}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f5f9;border-radius:10px;padding:12px}select{font:inherit;max-width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px}label{font-weight:700}a{color:#2456c2}#message{position:sticky;top:0;background:#eff6ff;padding:10px;border:1px solid #bbd2f9;border-radius:10px;z-index:2;overflow-wrap:anywhere}#message:empty{display:none}html.embedded main{padding:8px 7px 20px}html.embedded main>.cloud-back,html.embedded main>.cloud-heading,html.embedded main>.cloud-intro{display:none}html.embedded .card{padding:12px;margin:10px 0}html.embedded button{font-size:14px;padding:10px}html.embedded h2{font-size:16px}.sync-overview{border:1px solid #cbd5e1;border-radius:12px;padding:12px;margin:12px 0;background:#f8fafc}.sync-overview strong{display:block;font-size:17px}.sync-overview[data-state="ok"]{border-color:#8acfa9}.sync-overview[data-state="conflict"]{border-color:#ed9595}.sync-overview[data-state="pending"]{border-color:#e2bf73}.sync-change-list{margin:8px 0;padding:0;list-style:none}.sync-change-list li{padding:9px 10px;margin:6px 0;border-radius:9px;background:#fff;border:1px solid #e2e8f0;font-size:13px;line-height:1.55;overflow-wrap:anywhere}.sync-change-list li strong{display:block;font-size:13px;margin:0}.sync-guide{border:1px solid #b9ccec;background:#f5f9ff;border-radius:12px;padding:12px;margin:10px 0}.sync-guide h2{font-size:17px;margin:0 0 8px}.sync-guide p{font-size:13px;line-height:1.6;margin:6px 0}.sync-guide .hidden{display:none!important}.sync-guide .primary{width:100%;font-size:16px}.sync-guide .sync-guide-actions{display:flex;flex-wrap:wrap;gap:6px}.sync-guide .sync-guide-actions button{flex:1 1 180px}.sync-guide small{font-size:12px;color:#566176}</style></head>
 <body><main><a class="cloud-back" href="../index.html">← 現行 v2.22 へ戻る</a><h1 class="cloud-heading">麻雀対局記録サイト v3.0</h1>
 <p class="small cloud-intro">開発用Supabase接続済みのクラウド試験版です。v3.0試験入力と同じ保存領域を使い、変更の確認と取り込みができます。</p><p id="message" role="status" aria-live="polite"></p>
 <section class="card" id="setup"><h2>1. Supabase 接続</h2>
@@ -16,7 +16,7 @@
 <h2>参加できるルーム</h2><button class="secondary" id="refresh">一覧を更新</button><select id="rooms"><option value="">ルームを選択</option></select>
 <div id="roomDetails" class="hidden"><p id="roomInfo"></p><button id="invite">招待リンクを作成（24時間・1回限り）</button>
 <p id="inviteOutput" class="small"></p>
-<div id="syncOverview" class="sync-overview" role="status" aria-live="polite" data-state="unknown"><strong id="syncOverviewTitle">同期状況：未確認</strong><p id="syncOverviewDetails" class="small">確認しても記録は変更されません。</p><ul id="syncChangeList" class="sync-change-list" aria-label="未送信の半荘一覧"></ul><button id="checkSyncOverview" class="secondary">同期状況を確認</button></div><h2>保存済みの半荘</h2><p id="metaStatus" class="small"></p><ul id="matches"></ul><button class="secondary" id="export" disabled>v2.22互換バックアップを書き出す</button>
+<div id="syncGuide" class="sync-guide"><h2>かんたん同期</h2><p>端末とクラウドの変更をまとめて確認します。確認するだけでは保存・上書きしません。</p><button id="guideSync" class="primary" type="button">同期する（変更を確認）</button><p id="guideStatus" role="status" aria-live="polite">まず「同期する」を押してください。</p><div id="guideActions" class="sync-guide-actions hidden"><button id="guideReceive" class="secondary hidden" type="button">クラウドの変更を取り込む準備</button><button id="guideSend" class="secondary hidden" type="button">端末の変更を保存する準備</button></div><small>実際の取り込み・保存は、変更内容とバックアップを確認した後に行います。競合時は処理を停止します。</small></div><div id="syncOverview" class="sync-overview" role="status" aria-live="polite" data-state="unknown"><strong id="syncOverviewTitle">同期状況：未確認</strong><p id="syncOverviewDetails" class="small">確認しても記録は変更されません。</p><ul id="syncChangeList" class="sync-change-list" aria-label="未送信の半荘一覧"></ul><button id="checkSyncOverview" class="secondary">同期状況を確認</button></div><h2>保存済みの半荘</h2><p id="metaStatus" class="small"></p><ul id="matches"></ul><button class="secondary" id="export" disabled>v2.22互換バックアップを書き出す</button>
 <div id="ownerPull" style="border:1px solid #dce4ee;border-radius:12px;padding:12px;margin:12px 0">
 <h2>クラウドから試験入力へ取り込む</h2>
 <p class="small">ローカルとクラウドを比較します。競合する半荘は通常取り込みません。明示的に選択した場合のみ、競合した半荘に限りクラウドの記録を採用します。端末の元記録は事前にJSON保存してください。設定の不一致や未追跡のID重複は拒否します。</p>
@@ -65,6 +65,12 @@ let autoSyncEnabled=false,autoSyncBusy=false,autoSyncRoomId=null;
 let pullPlan=null;
 const notice=(msg,kind="")=>{$("message").textContent=msg;$("message").className=kind;};
 const err=e=>{notice(e?.message||String(e),"error");};
+function invalidateGuide(message="変更の確認が必要です。"){
+ $("guideStatus").textContent=message;
+ $("guideActions").classList.add("hidden");
+ $("guideSend").classList.add("hidden");
+ $("guideReceive").classList.add("hidden");
+}
 function setOverview(state,title,details){
  $("syncOverview").dataset.state=state;
  $("syncOverviewTitle").textContent=title;
@@ -149,6 +155,7 @@ async function selectRoom(id){
  if(autoSyncEnabled&&id!==autoSyncRoomId)stopAutoSync("ルームを切り替えたため停止しました。");
  currentRoom=rooms.find(r=>r.id===id)||null;pullPlan=null;$("pullReview").classList.add("hidden");$("pullBackupConfirmed").checked=false;preparedImport=null;updateCandidates=[];$("updateReview").classList.add("hidden");$("importReview").classList.add("hidden");$("roomDetails").classList.toggle("hidden",!currentRoom);
  setOverview("unknown","同期状況：未確認","「同期状況を確認」で最新の状態を読み取ります。");
+ invalidateGuide("ルーム選択後に「同期する」を押してください。");
  if(!currentRoom){snapshots=[];roomMeta=null;preparedImport=null;$("importReview").classList.add("hidden");return;}
  const owner=currentRoom.owner_id===me.id;
  $("invite").classList.toggle("hidden",!owner);$("ownerActions").classList.toggle("hidden",!owner);$("ownerPull").classList.toggle("hidden",!owner);
@@ -377,6 +384,67 @@ $("checkSyncOverview").onclick=async()=>{
   const message=e?.message||String(e);
   setOverview("conflict",/両方で変更|重複|同期基準|設定|削除|未追跡/.test(message)?"競合・確認が必要":"同期状況の確認に失敗",message+" 記録は変更されていません。");
  }finally{button.disabled=false;}
+};
+function planGuidedSync(local,checkpoint,remoteMeta,records,roomId){
+ const pull=comparePullData(local,checkpoint,remoteMeta,records);
+ const remote=new Map(records.map(x=>[x.match_key,x]));
+ const candidates=buildUpdateCandidates(local,checkpoint,remote,roomId);
+ return {
+  incoming:pull.pulled,
+  outgoing:candidates,
+  rebase:!!pull.rebased&&pull.pulled===0,
+  status:pull.pulled?"receive":candidates.length?"send":pull.rebased?"receive":"clean"
+ };
+}
+$("guideSync").onclick=async()=>{
+ const btn=$("guideSync");btn.disabled=true;
+ invalidateGuide("クラウドと端末を比較しています…");
+ try{
+  if(autoSyncEnabled)throw Error("先に自動反映を停止してください。");
+  if(!sb||!me||!currentRoom)throw Error("ログインして共有ルームを選択してください。");
+  if(currentRoom.owner_id!==me.id)throw Error("このアカウントは閲覧専用です。同期操作はルーム作成者のみ行えます。");
+  const roomId=currentRoom.id;
+  const raw=localStorage.getItem("mahjongV3Trial");
+  if(!raw)throw Error("試験入力データがありません。初回取り込みの手順をご利用ください。");
+  const checkpoint=loadCheckpoint(roomId);
+  if(!checkpoint)throw Error("同期基準がありません。初回取り込みの手順をご利用ください。");
+  const local=checkedBackup(JSON.parse(raw));
+  const [results,metaResult]=await Promise.all([
+   sb.from("mahjong_v3_room_matches").select("match_key,payload,version").eq("room_id",roomId),
+   sb.from("mahjong_v3_room_backup_meta").select("payload").eq("room_id",roomId).maybeSingle()
+  ]);
+  if(results.error)throw results.error;
+  if(metaResult.error)throw metaResult.error;
+  if(currentRoom?.id!==roomId||localStorage.getItem("mahjongV3Trial")!==raw)
+   throw Error("確認中にルームまたは端末の記録が変わりました。もう一度確認してください。");
+  const plan=planGuidedSync(local,checkpoint,metaResult.data?.payload,results.data||[],roomId);
+  const outgoing=plan.outgoing.length,incoming=plan.incoming;
+  if(plan.status==="clean"){
+   $("guideStatus").textContent="同期済みです。端末・クラウドに未反映の変更はありません。";
+   return;
+  }
+  const receive=plan.status==="receive";
+  $("guideActions").classList.remove("hidden");
+  $("guideReceive").classList.toggle("hidden",!receive);
+  $("guideSend").classList.toggle("hidden",receive);
+  $("guideStatus").textContent=
+   "端末の未送信："+outgoing+"件 ／ クラウドの未取得："+incoming+"件。"+
+   (receive
+    ?"先にクラウドの変更を取り込みます。端末の未送信変更は保持します。取り込み前のバックアップ確認が必要です。"
+    :"端末の未送信内容を確認し、半荘ごとに保存できます。");
+ }catch(e){
+  invalidateGuide("同期を停止しました："+(e?.message||String(e))+"。データは変更していません。");
+ }finally{btn.disabled=false;}
+};
+$("guideReceive").onclick=()=>{
+ $("guideActions").classList.add("hidden");
+ $("comparePull").click();
+ $("ownerPull").scrollIntoView({behavior:"smooth",block:"start"});
+};
+$("guideSend").onclick=()=>{
+ $("guideActions").classList.add("hidden");
+ $("scanUpdates").click();
+ $("ownerActions").scrollIntoView({behavior:"smooth",block:"start"});
 };
 function comparePullData(local,checkpoint,remoteMeta,cloudRecords,preferCloudConflicts=false){
  if(!checkpoint||checkpoint.schema!==1)throw Error("同期基準がありません。先にこの端末で初回取り込みしてください。");

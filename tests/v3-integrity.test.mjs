@@ -193,7 +193,7 @@ test('Read-only cloud viewer retains text-only rendering and hides writes for gu
 });
 test('Cloud viewer stats include only completed matches with valid player results',()=>{
  const code=extract('function viewerMatchInfo(', 'async function selectRoom(');
- const {viewerStatsData}=vm.runInNewContext(code+'\n({viewerStatsData})',{}, {timeout:1000});
+ const {viewerStatsData}=vm.runInNewContext(code+'\n({viewerStatsData})',{$:()=>({})}, {timeout:1000});
  const base=record('completed','m1',1);
  base.payload.match.playerIds=['a','b','c','d'];
  base.payload.match.final={byPlayer:[

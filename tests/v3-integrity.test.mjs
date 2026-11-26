@@ -148,6 +148,22 @@ test('Cloud notice does not overlap sync controls in embedded mobile view',()=>{
  assert.match(html,/#message\.error\{/);
  assert.match(html,/id="guideSync"/);
 });
+test('One-button guided sync displays upload and download confirmation directly',()=>{
+ const start=html.indexOf('id="guideReview"');
+ const end=html.indexOf('id="syncOverview"',start);
+ assert.ok(start>=0&&end>start,'inline guided review area should exist');
+ const inline=html.slice(start,end);
+ assert.match(inline,/id="pullReview"/);
+ assert.match(inline,/id="updateReview"/);
+ assert.match(inline,/id="pullBackupConfirmed"/);
+ assert.match(inline,/id="downloadLocalBeforePull"/);
+ assert.match(inline,/id="applyPull"/);
+ assert.match(inline,/id="applyUpdate"/);
+ assert.match(script,/await compareCloudPull\(false\)/);
+ assert.match(script,/await \$\("scanUpdates"\)\.onclick\(\)/);
+ assert.doesNotMatch(html,/id="guideReceive"/);
+ assert.doesNotMatch(html,/id="guideSend"/);
+});
 test('Complete backup validates without modifying source',()=>{
  const data=fixture({completed:[freshMatch('m1')]});
  const saved=JSON.stringify(data),x=checkedBackup(data);

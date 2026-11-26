@@ -159,7 +159,7 @@ async function selectRoom(id){
  invalidateGuide("ルーム選択後に「同期する」を押してください。");
  if(!currentRoom){snapshots=[];roomMeta=null;preparedImport=null;$("importReview").classList.add("hidden");return;}
  const owner=currentRoom.owner_id===me.id;
- $("invite").classList.toggle("hidden",!owner);$("ownerActions").classList.toggle("hidden",!owner);$("ownerPull").classList.toggle("hidden",!owner);
+ $("ownerInvite").classList.toggle("hidden",!owner);$("invite").classList.toggle("hidden",!owner);$("ownerActions").classList.toggle("hidden",!owner);$("ownerPull").classList.toggle("hidden",!owner);
  $("roomInfo").textContent=currentRoom.title+" ／ "+(owner?"作成者（編集可能）":"参加者（閲覧専用）");
  $("inviteOutput").textContent="";
  const {data,error}=await sb.from("mahjong_v3_room_matches").select("room_id,match_key,payload,version,updated_at").eq("room_id",id).order("updated_at",{ascending:false});

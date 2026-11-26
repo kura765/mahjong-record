@@ -164,6 +164,22 @@ test('One-button guided sync displays upload and download confirmation directly'
  assert.doesNotMatch(html,/id="guideReceive"/);
  assert.doesNotMatch(html,/id="guideSend"/);
 });
+test('Daily cloud sync is visible while advanced controls remain available in details',()=>{
+ const room=html.indexOf('id="roomDetails"'),guide=html.indexOf('id="syncGuide"'),advanced=html.indexOf('id="advancedSync"'),end=html.indexOf('</section><section class="card"><h2>安全性について');
+ assert.ok(room>=0&&guide>room&&advanced>guide&&end>advanced);
+ const everyday=html.slice(room,advanced),details=html.slice(advanced,end);
+ assert.match(everyday,/id="guideSync"/);
+ assert.match(everyday,/id="pullReview"/);
+ assert.match(everyday,/id="updateReview"/);
+ assert.match(details,/id="checkSyncOverview"/);
+ assert.match(details,/id="export"/);
+ assert.match(details,/id="ownerPull"/);
+ assert.match(details,/id="ownerActions"/);
+ assert.match(details,/id="ownerInvite"/);
+ assert.match(html,/id="roomCreateDetails"/);
+ assert.match(script,/\$\("ownerInvite"\)\.classList\.toggle\("hidden",!owner\)/);
+ assert.match(html,/\.cloud-details>summary\{cursor:pointer/);
+});
 test('Complete backup validates without modifying source',()=>{
  const data=fixture({completed:[freshMatch('m1')]});
  const saved=JSON.stringify(data),x=checkedBackup(data);

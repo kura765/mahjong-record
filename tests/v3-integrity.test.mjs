@@ -180,6 +180,36 @@ test('Daily cloud sync is visible while advanced controls remain available in de
  assert.match(script,/\$\("ownerInvite"\)\.classList\.toggle\("hidden",!owner\)/);
  assert.match(html,/\.cloud-details>summary\{cursor:pointer/);
 });
+test('Read-only cloud viewer retains text-only rendering and hides writes for guests',()=>{
+ assert.match(html,/id="roomViewer"/);
+ assert.match(html,/id="viewerFilter"/);
+ assert.match(html,/id="viewerMatches"/);
+ assert.match(html,/id="viewerStats"/);
+ assert.match(script,/\$\("syncGuide"\)\.classList\.toggle\("hidden",!owner\)/);
+ assert.match(script,/\$\("advancedSync"\)\.classList\.toggle\("hidden",!owner\)/);
+ assert.match(script,/function renderRoomViewer\(/);
+ assert.match(script,/info\.textContent=String\(h\?\.label/);
+ assert.match(script,/renderRoomViewer\(\)/);
+});
+test('Cloud viewer stats include only completed matches with valid player results',()=>{
+ const code=extract('function viewerMatchInfo(', 'async function selectRoom(');
+ const {viewerStatsData}=vm.runInNewContext(code+'\n({viewerStatsData})',{}, {timeout:1000});
+ const base=record('completed','m1',1);
+ base.payload.match.playerIds=['a','b','c','d'];
+ base.payload.match.final={byPlayer:[
+  {player:0,rank:1,score:37},{player:1,rank:2,score:-4},
+  {player:2,rank:3,score:-14},{player:3,rank:4,score:-19}
+ ]};
+ const suspended=record('suspended','m2',1);
+ suspended.payload.match.playerIds=['a','b','c','d'];
+ suspended.payload.match.final=base.payload.match.final;
+ const result=viewerStatsData([snapshot(base),snapshot(suspended)]);
+ assert.equal(result.length,4);
+ assert.equal(result[0].name,'A');
+ assert.equal(result[0].matches,1);
+ assert.equal(result[0].score,37);
+ assert.deepEqual(Array.from(result[0].ranks),[1,0,0,0]);
+});
 test('Complete backup validates without modifying source',()=>{
  const data=fixture({completed:[freshMatch('m1')]});
  const saved=JSON.stringify(data),x=checkedBackup(data);

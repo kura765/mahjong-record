@@ -67,8 +67,11 @@ const notice=(msg,kind="")=>{$("message").textContent=msg;$("message").className
 const err=e=>{notice(e?.message||String(e),"error");};
 function invalidateGuide(message="変更の確認が必要です。"){
  $("guideStatus").textContent=message;
- $("pullReview").classList.add("hidden");
+ invalidatePull();
+ updateCandidates=[];
  $("updateReview").classList.add("hidden");
+ $("updateTarget").replaceChildren();
+ $("applyUpdate").disabled=true;
 }
 function setOverview(state,title,details){
  $("syncOverview").dataset.state=state;

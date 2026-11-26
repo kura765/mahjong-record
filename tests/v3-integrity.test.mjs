@@ -142,6 +142,12 @@ test('Guided sync never offers uploads before remote changes are retrieved',()=>
  assert.equal(result.outgoing.length,1);
  assert.match(script,/id\=\"guideSync\"|\$\("guideSync"\)/);
 });
+test('Cloud notice does not overlap sync controls in embedded mobile view',()=>{
+ assert.doesNotMatch(html,/#message\{[^}]*position:sticky/);
+ assert.match(html,/#message\{position:static/);
+ assert.match(html,/#message\.error\{/);
+ assert.match(html,/id="guideSync"/);
+});
 test('Complete backup validates without modifying source',()=>{
  const data=fixture({completed:[freshMatch('m1')]});
  const saved=JSON.stringify(data),x=checkedBackup(data);
